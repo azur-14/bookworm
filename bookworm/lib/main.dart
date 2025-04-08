@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'login.dart';
+import 'Login.dart';
+import 'AdminHome.dart';
+import 'BookManagement.dart';
 void main() {
   runApp(const MyApp());
 }
@@ -16,7 +18,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
         useMaterial3: true,
       ),
-      home: SignInPage(),// Đặt WelcomeScreen làm trang chính
+      home: BookManagementPage(),// Đặt WelcomeScreen làm trang chính
     );
   }
 }

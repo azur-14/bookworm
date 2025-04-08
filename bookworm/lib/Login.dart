@@ -1,6 +1,6 @@
-import 'package:bookworm/signup.dart';
+import 'package:bookworm/SignUp.dart';
 import 'package:flutter/material.dart';
-import 'forgetpassword.dart';
+import 'ForgetPassword.dart';
 class SignInPage extends StatelessWidget {
   const SignInPage({Key? key}) : super(key: key);
   @override
