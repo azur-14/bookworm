@@ -1,17 +1,29 @@
-import 'package:bookworm/SignUp.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+import 'SignUp.dart';
 import 'ForgetPassword.dart';
-class SignInPage extends StatelessWidget {
+
+class SignInPage extends StatefulWidget {
   const SignInPage({Key? key}) : super(key: key);
+
+  @override
+  State<SignInPage> createState() => _SignInPageState();
+}
+
+class _SignInPageState extends State<SignInPage> {
+  final TextEditingController usernameController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+
   @override
   Widget build(BuildContext context) {
-    // Get the screen height
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
       body: Row(
         children: [
-          // Left half: white background with sign in form
+          // Left half: Sign-in form
           Expanded(
             child: Container(
               color: Colors.white,
@@ -23,14 +35,13 @@ class SignInPage extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Logo for white background
                         Image.asset(
-                          'assets/logo_light.png', // Ensure the file name is correct
+                          'assets/logo_light.png',
                           width: 250,
                         ),
                         const SizedBox(height: 20),
-                        // Username TextField
                         TextField(
+                          controller: usernameController,
                           decoration: InputDecoration(
                             labelText: 'Username',
                             border: OutlineInputBorder(
@@ -43,8 +54,8 @@ class SignInPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        // Password TextField
                         TextField(
+                          controller: passwordController,
                           obscureText: true,
                           decoration: InputDecoration(
                             labelText: 'Password',
@@ -64,15 +75,15 @@ class SignInPage extends StatelessWidget {
                             onPressed: () {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
+                                MaterialPageRoute(
+                                    builder: (context) =>
+                                    const ForgotPasswordPage()),
                               );
-
                             },
                             child: const Text('Forgot password?'),
                           ),
                         ),
                         const SizedBox(height: 16),
-                        // SIGN IN button with brown background and white text
                         SizedBox(
                           width: double.infinity,
                           height: 50,
@@ -84,9 +95,7 @@ class SignInPage extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
-                            onPressed: () {
-                              // TODO: Handle sign in
-                            },
+                            onPressed: () => loginUser(context),
                             child: const Text(
                               'SIGN IN',
                               style: TextStyle(fontSize: 16),
@@ -100,7 +109,7 @@ class SignInPage extends StatelessWidget {
               ),
             ),
           ),
-          // Right half: brown background (#594A47) with a button to slide to the SignUpPage
+          // Right half: Sign-up redirect
           Expanded(
             child: Container(
               color: const Color(0xFF594A47),
@@ -112,9 +121,8 @@ class SignInPage extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Logo for brown background
                         Image.asset(
-                          'assets/logo_dark.png', // Ensure the file name is correct
+                          'assets/logo_dark.png',
                           width: 250,
                         ),
                         const SizedBox(height: 20),
@@ -127,7 +135,6 @@ class SignInPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        // SIGN UP button: slides to the SignUpPage when pressed
                         SizedBox(
                           width: double.infinity,
                           height: 50,
@@ -143,13 +150,15 @@ class SignInPage extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 PageRouteBuilder(
-                                  transitionDuration: const Duration(milliseconds: 500),
-                                  pageBuilder: (context, animation, secondaryAnimation) =>
+                                  transitionDuration:
+                                  const Duration(milliseconds: 500),
+                                  pageBuilder: (context, animation,
+                                      secondaryAnimation) =>
                                   const SignUpPage(),
-                                  transitionsBuilder:
-                                      (context, animation, secondaryAnimation, child) {
+                                  transitionsBuilder: (context, animation,
+                                      secondaryAnimation, child) {
                                     final offsetAnimation = Tween<Offset>(
-                                      begin: const Offset(1.0, 0.0), // Slide from the right
+                                      begin: const Offset(1.0, 0.0),
                                       end: Offset.zero,
                                     ).animate(animation);
                                     return SlideTransition(
@@ -176,5 +185,52 @@ class SignInPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> loginUser(BuildContext context) async {
+    final url = Uri.parse('http://localhost:3000/api/users/login');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': usernameController.text.trim(),
+        'password': passwordController.text,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      final user = data['user'];
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Chào mừng'),
+          content: Text('Xin chào ${user['name']} (${user['role']})'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+      // TODO: Điều hướng sang trang chính (Home/Profile) nếu cần
+    } else {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Lỗi đăng nhập'),
+          content: Text(data['message'] ?? 'Đăng nhập thất bại'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
