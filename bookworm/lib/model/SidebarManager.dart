@@ -15,7 +15,7 @@ class SidebarManager {
     SidebarItemData(icon: Icons.library_books, title: 'Catalog'),
     SidebarItemData(icon: Icons.menu_book, title: 'Books'),
     SidebarItemData(icon: Icons.people, title: 'Users'),
-    SidebarItemData(icon: Icons.store, title: 'Branches'),
+    SidebarItemData(icon: Icons.store, title: 'Rooms'),
   ];
 
   /// Builds a list of sidebar item widgets based on the current selected index.

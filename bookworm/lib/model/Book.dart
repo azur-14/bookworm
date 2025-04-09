@@ -1,36 +1,47 @@
 class Book {
   final String id;
-  final String name;
-  final String type;
-  final String language;
-  final String availability;
+  String title;
+  String author;
+  String publisher;
+  String publishYear;
+  String categoryId; // Lưu category id thay vì tên
+  String status;
+  DateTime timeCreate;
 
   Book({
     required this.id,
-    required this.name,
-    required this.type,
-    required this.language,
-    required this.availability,
+    required this.title,
+    required this.author,
+    required this.publisher,
+    required this.publishYear,
+    required this.categoryId,
+    required this.status,
+    required this.timeCreate,
   });
 
-  // Optional: fromMap and toMap methods for JSON conversion if needed
   factory Book.fromMap(Map<String, dynamic> data) {
     return Book(
       id: data['id'] as String,
-      name: data['name'] as String,
-      type: data['type'] as String,
-      language: data['language'] as String,
-      availability: data['availability'] as String,
+      title: data['title'] as String,
+      author: data['author'] as String,
+      publisher: data['publisher'] as String,
+      publishYear: data['publishYear'] as String,
+      categoryId: data['categoryId'] as String,
+      status: data['status'] as String,
+      timeCreate: DateTime.parse(data['timeCreate'] as String),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'name': name,
-      'type': type,
-      'language': language,
-      'availability': availability,
+      'title': title,
+      'author': author,
+      'publisher': publisher,
+      'publishYear': publishYear,
+      'categoryId': categoryId,
+      'status': status,
+      'timeCreate': timeCreate.toIso8601String(),
     };
   }
 }

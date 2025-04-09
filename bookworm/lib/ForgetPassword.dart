@@ -48,7 +48,7 @@ class ForgotPasswordPage extends StatelessWidget {
                             ),
                             const SizedBox(height: 8),
                             const Text(
-                              'Please enter your username to reset your password.',
+                              'Please enter your email to reset your password.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 16,
@@ -59,7 +59,7 @@ class ForgotPasswordPage extends StatelessWidget {
                             // Username field
                             TextField(
                               decoration: InputDecoration(
-                                labelText: 'Username',
+                                labelText: 'Email',
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),

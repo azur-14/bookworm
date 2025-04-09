@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
-import 'Login.dart';
-import 'AdminHome.dart';
-import 'BookManagement.dart';
+import 'MainLayout.dart';
+
 void main() {
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
+  const MyApp({Key? key}) : super(key: key);
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Library Management',
       debugShowCheckedModeBanner: false,
-      title: 'Flutter Demo',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
-        useMaterial3: true,
+        primarySwatch: Colors.blue,
       ),
-      home: BookManagementPage(),// Đặt WelcomeScreen làm trang chính
+      home: const MainLayout(
+               userName: 'HieuNgan',
+               userRole: 'Librarian',
+             ),
     );
   }
 }
