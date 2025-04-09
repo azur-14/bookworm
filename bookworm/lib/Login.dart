@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'MainLayout.dart';
 
 import 'SignUp.dart';
 import 'ForgetPassword.dart';
@@ -202,21 +203,36 @@ class _SignInPageState extends State<SignInPage> {
 
     if (response.statusCode == 200) {
       final user = data['user'];
+      final name = user['name'] as String;
+      final role = user['role'] as String;
+
+      // Show welcome dialog, then navigate:
       showDialog(
         context: context,
+        barrierDismissible: false,
         builder: (_) => AlertDialog(
           title: const Text('Chào mừng'),
-          content: Text('Xin chào ${user['name']} (${user['role']})'),
+          content: Text('Xin chào $name ($role)'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                Navigator.pop(context); // close dialog
+                // Replace sign‑in page with MainLayout
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MainLayout(
+                      userName: name,
+                      userRole: role,
+                    ),
+                  ),
+                );
+              },
               child: const Text('OK'),
             ),
           ],
         ),
       );
-
-      // TODO: Điều hướng sang trang chính (Home/Profile) nếu cần
     } else {
       showDialog(
         context: context,
@@ -233,4 +249,5 @@ class _SignInPageState extends State<SignInPage> {
       );
     }
   }
+}
 }
