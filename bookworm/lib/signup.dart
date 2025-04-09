@@ -1,38 +1,55 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:io';
 
-class SignUpPage extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+
+class SignUpPage extends StatefulWidget {
   const SignUpPage({Key? key}) : super(key: key);
+
+  @override
+  State<SignUpPage> createState() => _SignUpPageState();
+}
+
+class _SignUpPageState extends State<SignUpPage> {
+  // Controllers
+  final firstNameController = TextEditingController();
+  final lastNameController = TextEditingController();
+  final phoneController = TextEditingController();
+  final emailController = TextEditingController();
+  final usernameController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  // Ảnh đại diện
+  File? _imageFile;
+  String? _base64Avatar;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Row(
         children: [
-          // Nửa trái: nền nâu, logo và tiêu đề
+          // Nửa trái
           Expanded(
             child: Container(
               color: const Color(0xFF594A47),
               padding: const EdgeInsets.all(40),
               child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/logo_dark.png',
-                      width: 300,
-                    ),
-                  ],
+                child: Image.asset(
+                  'assets/logo_dark.png',
+                  width: 300,
                 ),
               ),
             ),
           ),
-          // Nửa phải: nền trắng chứa form đăng ký, có nút Back ở góc trên bên phải
+          // Nửa phải
           Expanded(
             child: Container(
               color: Colors.white,
               padding: const EdgeInsets.all(40),
               child: Stack(
                 children: [
-                  // Nội dung form đăng ký cho phép cuộn khi overflow
                   SingleChildScrollView(
                     child: Center(
                       child: ConstrainedBox(
@@ -40,7 +57,7 @@ class SignUpPage extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const SizedBox(height: 50), // Khoảng trống để tránh va chạm với nút Back
+                            const SizedBox(height: 50),
                             const Text(
                               'Sign Up',
                               textAlign: TextAlign.center,
@@ -59,8 +76,26 @@ class SignUpPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 30),
-                            // First Name
+                            ElevatedButton(
+                              onPressed: pickImage,
+                              child: const Text('Chọn ảnh đại diện'),
+                            ),
+                            if (_imageFile != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(50),
+                                  child: Image.file(
+                                    _imageFile!,
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 20),
                             TextField(
+                              controller: firstNameController,
                               decoration: InputDecoration(
                                 labelText: 'First Name',
                                 border: OutlineInputBorder(
@@ -69,8 +104,8 @@ class SignUpPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            // Last Name
                             TextField(
+                              controller: lastNameController,
                               decoration: InputDecoration(
                                 labelText: 'Last Name',
                                 border: OutlineInputBorder(
@@ -79,8 +114,8 @@ class SignUpPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            // Contact No
                             TextField(
+                              controller: phoneController,
                               decoration: InputDecoration(
                                 labelText: 'Contact No',
                                 border: OutlineInputBorder(
@@ -89,8 +124,8 @@ class SignUpPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            // Email
                             TextField(
+                              controller: emailController,
                               decoration: InputDecoration(
                                 labelText: 'Email',
                                 border: OutlineInputBorder(
@@ -99,8 +134,8 @@ class SignUpPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            // Username
                             TextField(
+                              controller: usernameController,
                               decoration: InputDecoration(
                                 labelText: 'Username',
                                 border: OutlineInputBorder(
@@ -109,8 +144,8 @@ class SignUpPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            // Password
                             TextField(
+                              controller: passwordController,
                               obscureText: true,
                               decoration: InputDecoration(
                                 labelText: 'Password',
@@ -120,7 +155,6 @@ class SignUpPage extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            // Nút SIGN UP
                             SizedBox(
                               height: 50,
                               child: ElevatedButton(
@@ -131,9 +165,7 @@ class SignUpPage extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                 ),
-                                onPressed: () {
-                                  // TODO: Xử lý đăng ký
-                                },
+                                onPressed: registerUser,
                                 child: const Text(
                                   'SIGN UP',
                                   style: TextStyle(fontSize: 16),
@@ -146,7 +178,6 @@ class SignUpPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Nút Back nằm ở góc trên bên phải của phần đăng ký (màn hình bên phải)
                   Positioned(
                     top: 10,
                     right: 10,
@@ -173,5 +204,71 @@ class SignUpPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // Chọn ảnh
+  Future<void> pickImage() async {
+    final pickedFile =
+    await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      _imageFile = File(pickedFile.path);
+      final bytes = await _imageFile!.readAsBytes();
+      _base64Avatar = base64Encode(bytes);
+      setState(() {});
+    }
+  }
+
+  // Gửi đăng ký
+  Future<void> registerUser() async {
+    final url = Uri.parse('http://localhost:3000/api/users/signup'); // đổi IP nếu test trên device thật
+
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': usernameController.text,
+        'password': passwordController.text,
+        'name':
+        '${firstNameController.text} ${lastNameController.text}'.trim(),
+        'email': emailController.text,
+        'phone': phoneController.text,
+        'avatar': _base64Avatar ?? '',
+      }),
+    );
+
+    final res = jsonDecode(response.body);
+
+    if (response.statusCode == 201) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Thành công'),
+          content: const Text('Đăng ký tài khoản thành công!'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Lỗi'),
+          content: Text(res['message'] ?? 'Lỗi không xác định'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
