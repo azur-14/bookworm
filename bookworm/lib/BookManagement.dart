@@ -3,7 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'model/Book.dart';
 import 'model/Category.dart';
-
+//viet ham load Category
+//viet ham load Book
+//update _showAddBookDialog()
+//update  _showViewBookDialog
+//update  _showUpdateBookDialog
+//update _delete
 class BookManagementPage extends StatefulWidget {
   const BookManagementPage({Key? key}) : super(key: key);
 
@@ -65,21 +70,6 @@ class _BookManagementPageState extends State<BookManagementPage> {
     );
   }
 
-
-  Widget _buildReadOnly(String label, String value) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.brown[50], borderRadius: BorderRadius.circular(8)),
-      child: Row(
-        children: [
-          SizedBox(width: 80, child: Text('$label:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.brown[700]))),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-
   String _catName(String id) {
     return _categories.firstWhere((c) => c.id == id, orElse: () => Category(id: '', name: 'Unknown')).name;
   }
@@ -98,7 +88,9 @@ class _BookManagementPageState extends State<BookManagementPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setStateDialog) {
           return AlertDialog(
-            insetPadding: const EdgeInsets.symmetric(horizontal: 50, vertical: 24),
+            // Giảm insetPadding nếu bạn muốn dialog to hơn nữa
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             title: Row(
               children: [
@@ -108,34 +100,44 @@ class _BookManagementPageState extends State<BookManagementPage> {
                     style: TextStyle(color: Colors.brown[700], fontWeight: FontWeight.bold)),
               ],
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildTextField(titleCtl, 'Title'),
-                  const SizedBox(height: 12),
-                  _buildTextField(authorCtl, 'Author'),
-                  const SizedBox(height: 12),
-                  _buildTextField(pubCtl, 'Publisher'),
-                  const SizedBox(height: 12),
-                  _buildTextField(yearCtl, 'Publish Year', numericOnly: true),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<Category>(
-                    value: selCat,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      border: OutlineInputBorder(),
+
+            // Bọc content trong Container có height cố định hoặc tỉ lệ
+            content: Container(
+              // 80% chiều cao màn hình
+              height: MediaQuery.of(context).size.height * 0.8,
+              // 80% chiều rộng màn hình
+              width: MediaQuery.of(context).size.width * 0.8,
+              // Cho phép cuộn nếu nội dung vượt quá
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildTextField(titleCtl, 'Title'),
+                    const SizedBox(height: 12),
+                    _buildTextField(authorCtl, 'Author'),
+                    const SizedBox(height: 12),
+                    _buildTextField(pubCtl, 'Publisher'),
+                    const SizedBox(height: 12),
+                    _buildTextField(yearCtl, 'Publish Year', numericOnly: true),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<Category>(
+                      value: selCat,
+                      decoration: const InputDecoration(
+                        labelText: 'Category',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _categories.map((c) {
+                        return DropdownMenuItem(value: c, child: Text(c.name));
+                      }).toList(),
+                      onChanged: (c) => setStateDialog(() => selCat = c),
                     ),
-                    items: _categories.map((c) {
-                      return DropdownMenuItem(value: c, child: Text(c.name));
-                    }).toList(),
-                    onChanged: (c) => setStateDialog(() => selCat = c),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildTextField(statusCtl, 'Status (e.g. available, borrowed)'),
-                ],
+                    const SizedBox(height: 12),
+                    _buildTextField(statusCtl, 'Status (e.g. available, borrowed)'),
+                  ],
+                ),
               ),
             ),
+
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
               ElevatedButton(
@@ -167,6 +169,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
     );
   }
 
+
 // 2) Update Book
   Future<void> _showUpdateBookDialog(Book b) async {
     final titleCtl  = TextEditingController(text: b.title);
@@ -185,7 +188,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setStateDialog) {
           return AlertDialog(
-            insetPadding: const EdgeInsets.symmetric(horizontal: 50, vertical: 24),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             title: Row(
               children: [
@@ -255,7 +258,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 50, vertical: 24),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Row(
           children: [
