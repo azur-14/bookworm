@@ -19,29 +19,16 @@ class RoomBookingRequest {
     required this.requestTime,
   });
 
-  factory RoomBookingRequest.fromMap(Map<String, dynamic> data) {
+  factory RoomBookingRequest.fromJson(Map<String, dynamic> json) {
     return RoomBookingRequest(
-      id: data['id'] as String,
-      userId: data['user_id'] as String,
-      roomId: data['room_id'] as String,
-      startTime: DateTime.parse(data['start_time'] as String),
-      endTime: DateTime.parse(data['end_time'] as String),
-      status: data['status'] as String,
-      purpose: data['purpose'] as String,
-      requestTime: DateTime.parse(data['request_time'] as String),
+      id: json['id'],
+      userId: json['user_id'] is Map ? json['user_id']['_id'] : json['user_id'],
+      roomId: json['room_id'] is Map ? json['room_id']['_id'] : json['room_id'],
+      startTime: DateTime.parse(json['start_time']),
+      endTime: DateTime.parse(json['end_time']),
+      status: json['status'],
+      purpose: json['purpose'],
+      requestTime: DateTime.parse(json['request_time']),
     );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'user_id': userId,
-      'room_id': roomId,
-      'start_time': startTime.toIso8601String(),
-      'end_time': endTime.toIso8601String(),
-      'status': status,
-      'purpose': purpose,
-      'request_time': requestTime.toIso8601String(),
-    };
   }
 }

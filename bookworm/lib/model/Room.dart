@@ -13,23 +13,13 @@ class Room {
     required this.fee,
   });
 
-  factory Room.fromMap(Map<String, dynamic> data) {
+  factory Room.fromJson(Map<String, dynamic> json) {
     return Room(
-      id: data['id'] as String,
-      name: data['name'] as String,
-      floor: data['floor'] as String,
-      capacity: data['capacity'] as int,
-      fee: data['fee'] as int,
+      id: json['id'],
+      name: json['name'],
+      floor: json['floor'],
+      capacity: json['capacity'],
+      fee: (json['fee'] as num).toInt(),
     );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'floor': floor,
-      'capacity': capacity,
-      'fee': fee,
-    };
   }
 }

@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'model/Room.dart';
 import 'model/RoomBookingRequest.dart';
-//viet ham load Room
-//viet ham load RoomBookingRequest
-//update  _showViewRoomDialog()
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class RoomManagementPage extends StatefulWidget {
   const RoomManagementPage({Key? key}) : super(key: key);
@@ -18,44 +17,14 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
   late DateTime _currentTime;
   Timer? _timer;
 
+  final TextEditingController _searchController = TextEditingController();
+  List<Room> _filteredRooms = [];
+
   // Danh sách phòng mẫu.
-  final List<Room> _rooms = [
-    Room(id: '1', name: 'A1', floor: '1', capacity: 5, fee: 20000),
-    Room(id: '2', name: 'A2', floor: '1', capacity: 2, fee: 20000),
-    Room(id: '3', name: 'A3', floor: '1', capacity: 2, fee: 15000),
-    Room(id: '4', name: 'B1', floor: '2', capacity: 4, fee: 20000),
-    Room(id: '5', name: 'B2', floor: '2', capacity: 3, fee: 10000),
-    Room(id: '6', name: 'C1', floor: '3', capacity: 1, fee: 10000),
-  ];
+  final List<Room> _rooms = [];
 
   // Danh sách yêu cầu đặt phòng.
-  Map<String, List<RoomBookingRequest>> _roomBookingRequests = {
-    '1': [
-      RoomBookingRequest(
-        id: 'rbr1',
-        userId: 'user123',
-        roomId: '1',
-        startTime: DateTime.now().add(Duration(hours: 0)),
-        endTime: DateTime.now().add(Duration(hours: 2)),
-        status: 'approved',
-        purpose: 'Họp nhóm',
-        requestTime: DateTime.now().subtract(Duration(minutes: 30)),
-      ),
-    ],
-    '2': [
-      RoomBookingRequest(
-        id: 'rbr2',
-        userId: 'user456',
-        roomId: '2',
-        startTime: DateTime.now().add(Duration(hours: 2)),
-        endTime: DateTime.now().add(Duration(hours: 3)),
-        status: 'pending',
-        purpose: 'Thảo luận dự án',
-        requestTime: DateTime.now().subtract(Duration(minutes: 45)),
-      ),
-    ],
-    // Các phòng khác có thể thêm tương tự...
-  };
+  Map<String, List<RoomBookingRequest>> _roomBookingRequests = {};
 
   @override
   void initState() {
@@ -65,6 +34,10 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
       setState(() {
         _currentTime = DateTime.now();
       });
+    });
+
+    _loadRooms().then((_) {
+      fetchAndSetRoomBookingRequests();
     });
   }
 
@@ -250,7 +223,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
               DataColumn(label: Text('Status')),
               DataColumn(label: Text('Action')),
             ],
-            rows: _rooms.map((Room room) {
+            rows: _filteredRooms.map((Room room) {
               String status = _getRoomStatus(room);
               return DataRow(cells: [
                 DataCell(Text(room.id)),
@@ -308,6 +281,8 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
                     SizedBox(
                       width: 220,
                       child: TextField(
+                        controller: _searchController,
+                        onChanged: _filterRooms,
                         decoration: InputDecoration(
                           hintText: 'Search by ID or Name',
                           prefixIcon: const Icon(Icons.search),
@@ -336,4 +311,65 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
       ],
     );
   }
+
+  void _filterRooms(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredRooms = List.from(_rooms);
+      } else {
+        _filteredRooms = _rooms.where((room) {
+          return room.id.toLowerCase().contains(query.toLowerCase()) ||
+              room.name.toLowerCase().contains(query.toLowerCase());
+        }).toList();
+      }
+    });
+  }
+
+
+  Future<List<Room>> fetchRooms() async {
+    final response = await http.get(Uri.parse('http://localhost:3001/api/rooms'));
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => Room.fromJson(json)).toList();
+    } else {
+      throw Exception('Lỗi khi tải danh sách phòng');
+    }
+  }
+
+  Future<void> _loadRooms() async {
+    try {
+      final rooms = await fetchRooms();
+      setState(() {
+        _rooms.clear();
+        _rooms.addAll(rooms);
+        _filteredRooms = List.from(_rooms);
+      });
+    } catch (e) {
+      print('Lỗi khi tải phòng: $e');
+    }
+  }
+
+  Future<void> fetchAndSetRoomBookingRequests() async {
+    try {
+      final response = await http.get(Uri.parse('http://localhost:3002/api/roomBookingRequest'));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        Map<String, List<RoomBookingRequest>> result = {};
+        for (var item in data) {
+          final request = RoomBookingRequest.fromJson(item);
+          result.putIfAbsent(request.roomId, () => []).add(request);
+        }
+        setState(() {
+          _roomBookingRequests = result;
+        });
+      } else {
+        throw Exception('Lỗi khi tải danh sách booking requests');
+      }
+    } catch (e) {
+      print('Lỗi khi tải booking requests: $e');
+    }
+  }
+
 }
