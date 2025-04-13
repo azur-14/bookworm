@@ -1,4 +1,6 @@
+import 'package:bookworm/UserManagement.dart';
 import 'package:flutter/material.dart';
+import 'Login.dart';
 import 'model/SidebarManager.dart';
 import 'BookManagement.dart';
 import 'RoomManagement.dart';
@@ -23,6 +25,9 @@ class _MainLayoutState extends State<MainLayout> {
       case 'Books':
         return const BookManagementPage();
       case 'Rooms':
+        return const RoomManagementPage();
+      case 'Users':
+        return const UserManagementPage();
       default:
         return const RoomManagementPage();
     }
@@ -31,6 +36,7 @@ class _MainLayoutState extends State<MainLayout> {
   void _onTap(int idx) {
     setState(() {
       if (idx == 2) _selected = 'Books';
+      else if (idx == 3) _selected = 'Users';
       else if (idx == 4) _selected = 'Rooms';
     });
   }
@@ -69,11 +75,15 @@ class _MainLayoutState extends State<MainLayout> {
 
               const Spacer(),
 
-              // --- Logout ---
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.white),
                 title: const Text('Log Out', style: TextStyle(color: Colors.white)),
-                onTap: () {/* logout */},
+                onTap: () {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const SignInPage()),
+                        (route) => false, // remove all previous routes
+                  );
+                },
               ),
             ],
           ),
