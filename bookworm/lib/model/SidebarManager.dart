@@ -12,7 +12,6 @@ class SidebarManager {
   // A list of sidebar menu items
   final List<SidebarItemData> items = [
     SidebarItemData(icon: Icons.dashboard, title: 'Dashboard'),
-    SidebarItemData(icon: Icons.library_books, title: 'Catalog'),
     SidebarItemData(icon: Icons.menu_book, title: 'Books'),
     SidebarItemData(icon: Icons.people, title: 'Users'),
     SidebarItemData(icon: Icons.store, title: 'Rooms'),

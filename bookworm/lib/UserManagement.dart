@@ -4,23 +4,22 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:auto_size_text/auto_size_text.dart';
+import '../model/User.dart';
 
-import 'model/User.dart';
-
-/// Hàm kiểm tra email đúng định dạng
+/// Validate email with a regular expression.
 bool isValidEmail(String email) {
-  final RegExp emailRegex =
-  RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+  final RegExp emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
   return emailRegex.hasMatch(email);
 }
 
-/// Hàm kiểm tra số điện thoại chỉ chứa số và có độ dài từ 9 đến 12 ký tự
+/// Validate phone: only digits and length between 9 and 12.
 bool isValidPhone(String phone) {
   final RegExp phoneRegex = RegExp(r'^\d{9,12}$');
   return phoneRegex.hasMatch(phone);
 }
 
-/// Hiển thị dialog báo lỗi với thông điệp truyền vào
+/// Show a dialog with a validation error message.
 Future<void> showValidationErrorDialog(BuildContext context, String message) async {
   await showDialog(
     context: context,
@@ -48,13 +47,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
   late DateTime _currentTime;
   Timer? _timer;
 
-  // Dữ liệu mẫu (3 user)
+  // Sample user data (3 users).
   final List<User> _users = [
     User(
       id: '1',
       avatar: '',
       password: 'admin123',
-      role: 'admin', // Admin sẽ được ẩn ra trong danh sách quản lý nếu cần
+      role: 'admin', // Will be hidden from the list.
       status: 'active',
       name: 'Admin One',
       email: 'admin@example.com',
@@ -85,7 +84,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     ),
   ];
 
-  // Cho phép chọn role chỉ là librarian và customer (admin không được lựa chọn)
+  // Allow roles: only librarian and customer.
   final List<String> _roles = ['librarian', 'customer'];
   final List<String> _statuses = ['active', 'block'];
 
@@ -106,15 +105,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
     super.dispose();
   }
 
-  /// Sinh mật khẩu ngẫu nhiên với độ dài chỉ định (ví dụ: 8 ký tự)
+  /// Generate a random password of given length.
   String generateRandomPassword(int length) {
-    const chars =
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     Random rnd = Random();
     return List.generate(length, (index) => chars[rnd.nextInt(chars.length)]).join();
   }
 
-  /// TextField cho các trường thông thường
+  /// Returns a TextField for normal data input.
   Widget _buildTextField(TextEditingController controller, String label,
       {bool numericOnly = false, ValueChanged<String>? onChanged}) {
     return TextField(
@@ -128,7 +126,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  /// TextField cho mật khẩu với nút toggle hiển thị và nút random password
+  /// Returns a TextField for the password with toggle and random buttons.
   Widget _buildPasswordFieldWithToggle(TextEditingController controller,
       String label, bool passwordVisible, VoidCallback toggleVisibility) {
     return TextField(
@@ -158,7 +156,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  /// Widget hiển thị thông tin đọc được (read-only) theo mẫu BookManagement
+  /// Read-only field style similar to BookManagement.
   Widget _buildReadOnlyField(String label, String value) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -168,19 +166,31 @@ class _UserManagementPageState extends State<UserManagementPage> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 80,
-            child: Text('$label:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.brown[700])),
+            child: AutoSizeText(
+              '$label:',
+              maxLines: 1,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.brown[700],
+              ),
+            ),
           ),
-          Expanded(child: Text(value, style: const TextStyle(color: Colors.black87))),
+          Expanded(
+            child: AutoSizeText(
+              value,
+              maxLines: 1,
+              style: const TextStyle(color: Colors.black87),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  /// Dialog Thêm mới User
+  /// Dialog to add a new user.
   Future<void> _showAddUserDialog() async {
     bool passwordVisible = false;
     final passwordCtl = TextEditingController();
@@ -188,7 +198,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final emailCtl = TextEditingController();
     final phoneCtl = TextEditingController();
     String selRole = _roles.first;
-    String selStatus = "block"; // Mặc định insert là "block"
+    String selStatus = "block"; // default insert status is block.
     String? base64Avatar;
 
     await showDialog(
@@ -203,7 +213,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
               children: [
                 const Icon(Icons.person_add, color: Colors.brown),
                 const SizedBox(width: 8),
-                Text('Add User', style: TextStyle(color: Colors.brown[700], fontWeight: FontWeight.bold)),
+                AutoSizeText(
+                  'Add User',
+                  maxLines: 1,
+                  style: TextStyle(color: Colors.brown[700], fontWeight: FontWeight.bold),
+                ),
               ],
             ),
             content: Container(
@@ -225,7 +239,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         labelText: 'Role',
                         border: OutlineInputBorder(),
                       ),
-                      items: _roles.map((role) => DropdownMenuItem(value: role, child: Text(role))).toList(),
+                      items: _roles.map((role) => DropdownMenuItem(value: role, child: AutoSizeText(role, maxLines: 1))).toList(),
                       onChanged: (value) => setStateDialog(() => selRole = value!),
                     ),
                     const SizedBox(height: 12),
@@ -235,7 +249,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         labelText: 'Status',
                         border: OutlineInputBorder(),
                       ),
-                      items: _statuses.map((status) => DropdownMenuItem(value: status, child: Text(status))).toList(),
+                      items: _statuses.map((status) => DropdownMenuItem(value: status, child: AutoSizeText(status, maxLines: 1))).toList(),
                       onChanged: (value) => setStateDialog(() => selStatus = value!),
                     ),
                     const SizedBox(height: 12),
@@ -245,9 +259,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       });
                     }),
                     const SizedBox(height: 12),
-                    // Chọn Avatar
+                    // Avatar picker row.
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         ElevatedButton.icon(
                           onPressed: () async {
@@ -287,7 +300,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('CANCEL'),
+                child: const AutoSizeText('CANCEL', maxLines: 1),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -322,7 +335,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   });
                   Navigator.pop(ctx);
                 },
-                child: const Text('ADD'),
+                child: const AutoSizeText('ADD', maxLines: 1),
               ),
             ],
           );
@@ -331,7 +344,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  /// Dialog Cập nhật User
+  /// Dialog to update an existing user.
   Future<void> _showUpdateUserDialog(User user) async {
     bool passwordVisible = false;
     final passwordCtl = TextEditingController(text: user.password);
@@ -354,7 +367,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
               children: [
                 const Icon(Icons.edit, color: Colors.brown),
                 const SizedBox(width: 8),
-                Text('Update User', style: TextStyle(color: Colors.brown[700], fontWeight: FontWeight.bold)),
+                AutoSizeText('Update User', maxLines: 1, style: TextStyle(color: Colors.brown[700], fontWeight: FontWeight.bold)),
               ],
             ),
             content: SingleChildScrollView(
@@ -373,7 +386,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       labelText: 'Role',
                       border: OutlineInputBorder(),
                     ),
-                    items: _roles.map((role) => DropdownMenuItem(value: role, child: Text(role))).toList(),
+                    items: _roles.map((role) => DropdownMenuItem(value: role, child: AutoSizeText(role, maxLines: 1))).toList(),
                     onChanged: (value) => setStateDialog(() => selRole = value!),
                   ),
                   const SizedBox(height: 12),
@@ -383,7 +396,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       labelText: 'Status',
                       border: OutlineInputBorder(),
                     ),
-                    items: _statuses.map((status) => DropdownMenuItem(value: status, child: Text(status))).toList(),
+                    items: _statuses.map((status) => DropdownMenuItem(value: status, child: AutoSizeText(status, maxLines: 1))).toList(),
                     onChanged: (value) => setStateDialog(() => selStatus = value!),
                   ),
                   const SizedBox(height: 12),
@@ -393,8 +406,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     });
                   }),
                   const SizedBox(height: 12),
+                  // Avatar selection row.
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       ElevatedButton.icon(
                         onPressed: () async {
@@ -433,7 +446,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('CANCEL'),
+                child: const AutoSizeText('CANCEL', maxLines: 1),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -464,7 +477,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   });
                   Navigator.pop(ctx);
                 },
-                child: const Text('UPDATE'),
+                child: const AutoSizeText('UPDATE', maxLines: 1),
               ),
             ],
           );
@@ -473,7 +486,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  /// Dialog xem chi tiết User (read-only)
+  /// Dialog to view a user's details (read-only).
   Future<void> _showViewUserDialog(User user) async {
     await showDialog(
       context: context,
@@ -484,7 +497,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
           children: [
             const Icon(Icons.visibility_outlined, color: Colors.brown),
             const SizedBox(width: 8),
-            Text('View User', style: TextStyle(color: Colors.brown[700], fontWeight: FontWeight.bold)),
+            AutoSizeText('View User', maxLines: 1, style: TextStyle(color: Colors.brown[700], fontWeight: FontWeight.bold)),
           ],
         ),
         content: SingleChildScrollView(
@@ -509,14 +522,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('CLOSE'),
+            child: const AutoSizeText('CLOSE', maxLines: 1),
           ),
         ],
       ),
     );
   }
 
-  /// Dialog xác nhận xóa User
+  /// Dialog to confirm deletion of a user.
   void _deleteUser(User user) {
     showDialog(
       context: context,
@@ -543,9 +556,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  /// Bảng hiển thị danh sách User – bỏ qua user với role 'admin'
+  /// Build a responsive table displaying the list of users.
   Widget _buildTable() {
+    // Filter out admin users if needed.
     List<User> displayUsers = _users.where((user) => user.role != 'admin').toList();
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -563,31 +578,35 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 DataColumn(label: Text('Action')),
               ],
               rows: displayUsers.map((user) {
-                return DataRow(cells: [
-                  DataCell(Text(user.id)),
-                  DataCell(Text(user.name, overflow: TextOverflow.ellipsis)),
-                  DataCell(Text(user.email)),
-                  DataCell(Text(user.phone)),
-                  DataCell(Text(user.role)),
-                  DataCell(Text(user.status)),
-                  DataCell(Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.visibility, color: Colors.blue),
-                        onPressed: () => _showViewUserDialog(user),
+                return DataRow(
+                  cells: [
+                    DataCell(Text(user.id)),
+                    DataCell(Text(user.name, overflow: TextOverflow.ellipsis)),
+                    DataCell(Text(user.email)),
+                    DataCell(Text(user.phone)),
+                    DataCell(Text(user.role)),
+                    DataCell(Text(user.status)),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.visibility, color: Colors.blue),
+                            onPressed: () => _showViewUserDialog(user),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.brown),
+                            onPressed: () => _showUpdateUserDialog(user),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteUser(user),
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.brown),
-                        onPressed: () => _showUpdateUserDialog(user),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _deleteUser(user),
-                      ),
-                    ],
-                  )),
-                ]);
+                    ),
+                  ],
+                );
               }).toList(),
             ),
           ),
@@ -611,7 +630,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('User Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const AutoSizeText('User Management',
+                    maxLines: 1,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -619,7 +640,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     ElevatedButton.icon(
                       onPressed: _showAddUserDialog,
                       icon: const Icon(Icons.add),
-                      label: const Text('Add User'),
+                      label: const AutoSizeText('Add User', maxLines: 1),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.brown[700],
                         foregroundColor: const Color(0xFFFFF3EB),
@@ -659,10 +680,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
           padding: const EdgeInsets.all(8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
-            children: [Text('$formattedDate, $formattedTime')],
+            children: [AutoSizeText('$formattedDate, $formattedTime', maxLines: 1)],
           ),
         ),
       ],
     );
   }
 }
+
