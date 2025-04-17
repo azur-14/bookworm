@@ -195,23 +195,25 @@ class _BookShelfPageState extends State<BookShelfPage> {
     );
   }
 
-  // Grid view
   Widget _buildGridView(List<Book> books) {
-    return LayoutBuilder(builder: (ctx, box) {
-      return GridView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 250,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 250 / 360,
-        ),
-        itemCount: books.length,
-        itemBuilder: (_, i) => _buildGridItem(books[i]),
-      );
-    });
-  }
+    return LayoutBuilder(
+      builder: (ctx, box) {
+        // (nếu bạn muốn tính toán dựa trên box.maxWidth để thay đổi gridDelegate thì cứ để ở đây)
+        return GridView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 200,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 200 / 410, // giờ ô cao ~350px → info ~350/4 ≃ 87px
+          ),
+          itemCount: books.length,
+          itemBuilder: (_, i) => _buildGridItem(books[i]),
+        );
+      },
+    );}
 
+  // 2. Hàm _buildGridItem với flex 3:1 và Flexible cho info:
   Widget _buildGridItem(Book b) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
@@ -224,68 +226,59 @@ class _BookShelfPageState extends State<BookShelfPage> {
       child: Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 2,
+        // tránh overflow margin hơi xô lệch, thêm clipBehavior
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Cover
-            ClipRRect(
-              borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(12)),
-              child: Container(
-                height: 180,
-                color: Colors.grey[300],
-                child: b.image.isNotEmpty
-                    ? Image.network(
-                  b.image,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                )
-                    : const Icon(Icons.book, size: 40, color: Colors.white54),
-              ),
+            // A) COVER chiếm 3/4 chiều cao
+            Expanded(
+              flex: 3,
+              child: b.image.isNotEmpty
+                  ? Image.network(b.image, fit: BoxFit.cover)
+                  : Container(color: Colors.grey[300]),
             ),
-            // Thông tin + Borrow
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AutoSizeText(
-                    b.title,
-                    maxLines: 2,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text('by ${b.author}', style: const TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_catName(b.categoryId)} · ${b.publishYear}',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: b.availableQuantity > 0
-                        ? () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            BookDetailPage(book: b, categories: _categories),
-                      ),
-                    )
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: b.availableQuantity > 0
-                          ? const Color(0xFF7B4F3C)
-                          : Colors.grey,
-                      minimumSize: const Size.fromHeight(36),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+
+            // B) INFO + BUTTON: Flexible để chỉ lấy đúng kích thước cần
+            Flexible(
+              flex: 1,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AutoSizeText(
+                      b.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    child: Text(b.availableQuantity > 0
-                        ? 'Borrow (${b.availableQuantity})'
-                        : 'Unavailable'),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text('by ${b.author}',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text('${_catName(b.categoryId)} · ${b.publishYear}',
+                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    const Spacer(),
+                    ElevatedButton(
+                      onPressed: b.availableQuantity > 0 ? () {/*…*/} : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: b.availableQuantity > 0
+                            ? const Color(0xFF7B4F3C)
+                            : Colors.grey,
+                        minimumSize: const Size.fromHeight(32),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6)),
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: Text(
+                        b.availableQuantity > 0
+                            ? 'Borrow (${b.availableQuantity})'
+                            : 'Unavailable',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -293,6 +286,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
       ),
     );
   }
+
 
   // List view
   Widget _buildListView(List<Book> books) {
