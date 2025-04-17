@@ -44,7 +44,7 @@ class _SignInPageState extends State<SignInPage> {
                         TextField(
                           controller: usernameController,
                           decoration: InputDecoration(
-                            labelText: 'Username',
+                            labelText: 'Email',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -194,7 +194,7 @@ class _SignInPageState extends State<SignInPage> {
       url,
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'username': usernameController.text.trim(),
+        'email': usernameController.text.trim(),
         'password': passwordController.text,
       }),
     );

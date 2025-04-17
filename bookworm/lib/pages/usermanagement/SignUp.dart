@@ -18,7 +18,6 @@ class _SignUpPageState extends State<SignUpPage> {
   final lastNameController = TextEditingController();
   final phoneController = TextEditingController();
   final emailController = TextEditingController();
-  final usernameController = TextEditingController();
   final passwordController = TextEditingController();
 
   // Ảnh đại diện
@@ -135,16 +134,6 @@ class _SignUpPageState extends State<SignUpPage> {
                             ),
                             const SizedBox(height: 20),
                             TextField(
-                              controller: usernameController,
-                              decoration: InputDecoration(
-                                labelText: 'Username',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            TextField(
                               controller: passwordController,
                               obscureText: true,
                               decoration: InputDecoration(
@@ -220,14 +209,14 @@ class _SignUpPageState extends State<SignUpPage> {
 
   // Gửi đăng ký
   Future<void> registerUser() async {
-    final url = Uri.parse('http://localhost:3000/api/users/signup'); // đổi IP nếu test trên device thật
+    final url = Uri.parse('http://localhost:3000/api/users/signup');
 
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'username': usernameController.text,
         'password': passwordController.text,
+        'role': "customer",
         'name':
         '${firstNameController.text} ${lastNameController.text}'.trim(),
         'email': emailController.text,

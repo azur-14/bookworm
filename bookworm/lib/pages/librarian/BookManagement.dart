@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 
 import '../../model/BookItem.dart';
 import '../../model/Shelf.dart';
-
+// khong cho giam so luong sach nhe, do nhieu cai lien ket voi bang bookitem, nen khi thay doi bang bookitem thi so luong moi thay doi
 class BookManagementPage extends StatefulWidget {
   const BookManagementPage({Key? key}) : super(key: key);
   @override
@@ -99,6 +99,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
     _mockBookItems[bookId] = items;
     return items;
   }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -562,6 +563,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
                   );
                   try {
                     await updateBookItemOnServer(updated);
+
                     Navigator.pop(ctx);
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
