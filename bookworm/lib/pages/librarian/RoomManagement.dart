@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'model/Room.dart';
-import 'model/RoomBookingRequest.dart';
+import 'package:bookworm/model/Room.dart';
+import 'package:bookworm/model/RoomBookingRequest.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 

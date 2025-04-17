@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'model/Book.dart';
-import 'model/Category.dart';
+import '../../model/Book.dart';
+import '../../model/Category.dart';
 //viet ham load Category
 //viet ham load Book
 //update _showAddBookDialog()

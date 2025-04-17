@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'MainLayout.dart';
-
+import 'package:bookworm/MainLayout.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'SignUp.dart';
-import 'ForgetPassword.dart';
+import 'package:bookworm/pages/usermanagement/ForgetPassword.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({Key? key}) : super(key: key);
@@ -215,16 +215,17 @@ class _SignInPageState extends State<SignInPage> {
           content: Text('Xin chào $name ($role)'),
           actions: [
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context); // close dialog
                 // Replace sign‑in page with MainLayout
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('userRole', role);
+                await prefs.setString('userName', name);
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => MainLayout(
-                      userName: name,
-                      userRole: role,
-                    ),
+                    builder: (_) => MainLayout()
+
                   ),
                 );
               },

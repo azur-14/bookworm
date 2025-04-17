@@ -1,14 +1,17 @@
 import 'package:auto_size_text/auto_size_text.dart';
-import 'package:bookworm/UserManagement.dart';
-import 'package:bookworm/BookManagement.dart';
-import 'package:bookworm/RoomManagement.dart';
-import 'package:bookworm/Dashboard.dart';
-import 'package:bookworm/Login.dart';
-import 'package:bookworm/widgets/TopBar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+
+import 'package:bookworm/pages/Dashboard.dart';
+import 'package:bookworm/pages/librarian/BookManagement.dart';
+import 'package:bookworm/pages/librarian/RoomManagement.dart';
+import 'package:bookworm/pages/librarian/UserManagement.dart';
+import 'package:bookworm/pages/usermanagement/Login.dart';
+import 'package:bookworm/pages/customer/BookSheft.dart';  // Trang tìm sách cho user
+import 'package:bookworm/widgets/TopBar.dart';
 import 'model/SidebarManager.dart';
-import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'model/SidebarManager.dart';
 
 class NavItem {
   final String title;
@@ -19,66 +22,92 @@ class NavItem {
 }
 
 class MainLayout extends StatefulWidget {
-  final String userName;
-  final String userRole;
-  const MainLayout({Key? key, required this.userName, required this.userRole})
-      : super(key: key);
-
+  const MainLayout({Key? key}) : super(key: key);
   @override
   _MainLayoutState createState() => _MainLayoutState();
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  // Navigation items for the Drawer.
-  final List<NavItem> navItems = [
-    NavItem(title: 'Dashboard', icon: Icons.dashboard, page: const DashboardPage()),
-    NavItem(title: 'Books', icon: Icons.menu_book, page: const BookManagementPage()),
-    NavItem(title: 'Users', icon: Icons.people, page: const UserManagementPage()),
-    NavItem(title: 'Rooms', icon: Icons.store, page: const RoomManagementPage()),
-  ];
-
-  // Track which nav item is selected.
+  String? _userName;
+  String? _userRole;
   int _selectedIndex = 0;
   final SidebarManager _sidebar = SidebarManager();
 
-  /// Returns the body corresponding to the selected navigation item.
-  Widget _body() {
-    return navItems[_selectedIndex].page;
+  @override
+  void initState() {
+    super.initState();
+    _loadUserPrefs();
   }
 
-  /// Called when a drawer item is tapped.
-  void _onItemTap(int index) {
+  Future<void> _loadUserPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _selectedIndex = index;
+      _userName = prefs.getString('userName') ?? 'Guest';
+      _userRole = prefs.getString('userRole') ?? 'customer';
     });
-    Navigator.of(context).pop(); // close the drawer.
   }
 
-  /// Builds the Drawer using the existing SidebarManager.
+  List<NavItem> get _navItems {
+    switch (_userRole) {
+      case 'admin':
+        return [
+          NavItem(title: 'Dashboard', icon: Icons.dashboard, page: const DashboardPage()),
+          NavItem(title: 'Books', icon: Icons.menu_book, page: const BookManagementPage()),
+          NavItem(title: 'Users', icon: Icons.people, page: const UserManagementPage()),
+          NavItem(title: 'Rooms', icon: Icons.store, page: const RoomManagementPage()),
+        ];
+      case 'librarian':
+        return [
+          NavItem(title: 'Dashboard', icon: Icons.dashboard, page: const DashboardPage()),
+          NavItem(title: 'Users', icon: Icons.people, page: const UserManagementPage()),
+          NavItem(title: 'Books', icon: Icons.menu_book, page: const BookManagementPage()),
+          NavItem(title: 'Rooms', icon: Icons.store, page: const RoomManagementPage()),
+        ];
+      case 'customer':
+        return [
+          NavItem(title: 'Find Books', icon: Icons.search, page: const BookShelfPage()),
+        ];
+      default:
+        return [
+          NavItem(title: 'Find Books', icon: Icons.search, page: const BookShelfPage()),
+        ];
+    }
+  }
+
+  Widget _body() => _navItems[_selectedIndex].page;
+
+  void _onItemTap(int index) {
+    setState(() => _selectedIndex = index);
+    Navigator.of(context).pop(); // đóng drawer
+  }
+
   Widget _buildDrawer() {
     return Drawer(
-      backgroundColor: const Color(0xFF594A47), // Keep the original sidebar color.
+      backgroundColor: const Color(0xFF594A47),
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Drawer header with logo.
+            // Logo
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Image.asset(
-                'assets/logo_dark.png', // Adjust asset path as needed.
-                width: 150,
-                height: 150,
-              ),
+              child: Image.asset('assets/logo_dark.png', width: 150, height: 150),
             ),
             const SizedBox(height: 8),
-            // Sidebar items: using the original SidebarManager.
-            ..._sidebar.buildSidebarItems(
-              selectedIndex: _selectedIndex,
-              onItemTap: _onItemTap,
-            ),
+            // Nav items
+            ..._navItems.asMap().entries.map((e) {
+              final idx = e.key;
+              final item = e.value;
+              return ListTile(
+                leading: Icon(item.icon, color: Colors.white),
+                title: Text(item.title, style: const TextStyle(color: Colors.white)),
+                selected: idx == _selectedIndex,
+                selectedTileColor: Colors.white24,
+                onTap: () => _onItemTap(idx),
+              );
+            }),
             const Spacer(),
-            // Logout.
+            // Logout
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.white),
               title: const Text('Log Out', style: TextStyle(color: Colors.white)),
@@ -95,58 +124,38 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
-  /// Builds the AppBar title with increased prominence for white text.
   Widget _buildAppBarTitle() {
-    final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
-    final String formattedDate = DateFormat('MMM dd, yyyy').format(DateTime.now());
-    return Row(
+    final time = DateFormat('hh:mm a').format(DateTime.now());
+    final date = DateFormat('MMM dd, yyyy').format(DateTime.now());
+    return _userName == null
+        ? const SizedBox()
+        : Row(
       children: [
-        // Branding text on the left.
-        AutoSizeText(
-          'BookWorm Dashboard',
-          maxLines: 1,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white, // White text for prominence.
-          ),
-        ),
+        AutoSizeText('BookWorm',
+            maxLines: 1,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
         const Spacer(),
-        // User information.
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            AutoSizeText(
-              widget.userName,
-              maxLines: 1,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            AutoSizeText(
-              widget.userRole,
-              maxLines: 1,
-              style: const TextStyle(fontSize: 14, color: Colors.white70),
-            ),
+            AutoSizeText(_userName!,
+                maxLines: 1,
+                style: const TextStyle(fontSize: 16, color: Colors.white)),
+            AutoSizeText(_userRole!,
+                maxLines: 1,
+                style: const TextStyle(fontSize: 14, color: Colors.white70)),
           ],
         ),
         const SizedBox(width: 16),
-        // Date/Time.
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            AutoSizeText(
-              formattedTime,
-              maxLines: 1,
-              style: const TextStyle(fontSize: 14, color: Colors.white),
-            ),
-            AutoSizeText(
-              formattedDate,
-              maxLines: 1,
-              style: const TextStyle(fontSize: 12, color: Colors.white70),
-            ),
+            AutoSizeText(time,
+                maxLines: 1,
+                style: const TextStyle(fontSize: 14, color: Colors.white)),
+            AutoSizeText(date,
+                maxLines: 1,
+                style: const TextStyle(fontSize: 12, color: Colors.white70)),
           ],
         ),
       ],
@@ -155,18 +164,20 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
+    // Nếu prefs chưa load xong, hiển thị loading
+    if (_userName == null || _userRole == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF594A47),
         title: _buildAppBarTitle(),
         leading: Builder(
-          builder: (BuildContext context) {
-            return IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white),
-              // Set icon color to white
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            );
-          },
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
         ),
       ),
       drawer: _buildDrawer(),

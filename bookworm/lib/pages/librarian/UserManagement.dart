@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:auto_size_text/auto_size_text.dart';
-import '../model/User.dart';
+import '../../model/User.dart';
 
 /// Validate email with a regular expression.
 bool isValidEmail(String email) {
