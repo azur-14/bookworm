@@ -3,7 +3,7 @@ class Book {
   String title;
   String author;
   String publisher;
-  String publishYear;
+  int publishYear;
   String categoryId; // Lưu category id thay vì tên
   String status;
   DateTime timeCreate;
@@ -19,13 +19,13 @@ class Book {
     required this.timeCreate,
   });
 
-  factory Book.fromMap(Map<String, dynamic> data) {
+  factory Book.fromJson(Map<String, dynamic> data) {
     return Book(
       id: data['id'] as String,
       title: data['title'] as String,
       author: data['author'] as String,
       publisher: data['publisher'] as String,
-      publishYear: data['publishYear'] as String,
+      publishYear: (data['publishYear'] as num).toInt(),
       categoryId: data['categoryId'] as String,
       status: data['status'] as String,
       timeCreate: DateTime.parse(data['timeCreate'] as String),

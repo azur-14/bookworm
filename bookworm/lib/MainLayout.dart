@@ -38,7 +38,7 @@ class _MainLayoutState extends State<MainLayout> {
   ];
 
   // Track which nav item is selected.
-  int _selectedIndex = 0;
+  int _selectedIndex = 1;
   final SidebarManager _sidebar = SidebarManager();
 
   /// Returns the body corresponding to the selected navigation item.

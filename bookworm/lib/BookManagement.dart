@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'model/Book.dart';
 import 'model/Category.dart';
-//viet ham load Category
-//viet ham load Book
+
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+//viet ham load Category ✅
+//viet ham load Book ✅
 //update _showAddBookDialog()
 //update  _showViewBookDialog
 //update  _showUpdateBookDialog
@@ -20,25 +23,9 @@ class _BookManagementPageState extends State<BookManagementPage> {
   late DateTime _currentTime;
   Timer? _timer;
 
-  final List<Book> _books = [
-    Book(
-      id: '1',
-      title: 'Flutter for Beginners',
-      author: 'Alice Smith',
-      publisher: 'Tech Books',
-      publishYear: '2020',
-      categoryId: 'cat1',
-      status: 'available',
-      timeCreate: DateTime.parse("2021-01-01T10:00:00"),
-    ),
-    // ...
-  ];
+  final List<Book> _books = [];
 
-  final List<Category> _categories = [
-    Category(id: 'cat1', name: 'Educational'),
-    Category(id: 'cat2', name: 'Design'),
-    Category(id: 'cat3', name: 'Fiction'),
-  ];
+  final List<Category> _categories = [];
 
   @override
   void initState() {
@@ -46,6 +33,20 @@ class _BookManagementPageState extends State<BookManagementPage> {
     _currentTime = DateTime.now();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() => _currentTime = DateTime.now());
+    });
+
+    fetchBooks().then((bookList) {
+      setState(() {
+        _books.clear();
+        _books.addAll(bookList);
+      });
+    });
+
+    fetchCategories().then((catList) {
+      setState(() {
+        _categories.clear();
+        _categories.addAll(catList);
+      });
     });
   }
 
@@ -145,20 +146,33 @@ class _BookManagementPageState extends State<BookManagementPage> {
                   backgroundColor: Colors.brown[700],
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () {
-                  setState(() {
-                    _books.add(Book(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      title: titleCtl.text,
-                      author: authorCtl.text,
-                      publisher: pubCtl.text,
-                      publishYear: yearCtl.text,
-                      categoryId: selCat!.id,
-                      status: statusCtl.text,
-                      timeCreate: DateTime.now(),
+                onPressed: () async {
+                  final newBook = Book(
+                    id: "",
+                    title: titleCtl.text,
+                    author: authorCtl.text,
+                    publisher: pubCtl.text,
+                    publishYear: int.parse(yearCtl.text),
+                    categoryId: selCat!.id,
+                    status: statusCtl.text,
+                    timeCreate: DateTime.now(),
+                  );
+
+                  try {
+                    await addBookToServer(newBook);
+                    final refreshedBooks = await fetchBooks();
+                    setState(() {
+                      _books.clear();
+                      _books.addAll(refreshedBooks);
+                    });
+                    Navigator.pop(ctx);
+                  } catch (e) {
+                    print('Thêm sách thất bại: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Lỗi khi thêm sách: $e'),
+                      backgroundColor: Colors.red,
                     ));
-                  });
-                  Navigator.pop(ctx);
+                  }
                 },
                 child: const Text('ADD'),
               ),
@@ -175,7 +189,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
     final titleCtl  = TextEditingController(text: b.title);
     final authorCtl = TextEditingController(text: b.author);
     final pubCtl    = TextEditingController(text: b.publisher);
-    final yearCtl   = TextEditingController(text: b.publishYear);
+    final yearCtl   = TextEditingController(text: b.publishYear.toString());
     final statusCtl = TextEditingController(text: b.status);
     Category? selCat = _categories.firstWhere(
           (c) => c.id == b.categoryId,
@@ -238,7 +252,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
                     b.title       = titleCtl.text;
                     b.author      = authorCtl.text;
                     b.publisher   = pubCtl.text;
-                    b.publishYear = yearCtl.text;
+                    b.publishYear = int.parse(yearCtl.text);
                     b.categoryId  = selCat!.id;
                     b.status      = statusCtl.text;
                   });
@@ -275,7 +289,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
             _buildReadOnlyField('Title', b.title),
             _buildReadOnlyField('Author', b.author),
             _buildReadOnlyField('Publisher', b.publisher),
-            _buildReadOnlyField('Year', b.publishYear),
+            _buildReadOnlyField('Year', b.publishYear.toString()),
             _buildReadOnlyField('Category', _catName(b.categoryId)),
             _buildReadOnlyField('Status', b.status),
             _buildReadOnlyField('Created', DateFormat('MMM dd, yyyy').format(b.timeCreate)),
@@ -368,7 +382,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
                 DataCell(Text(b.title, overflow: TextOverflow.ellipsis)),
                 DataCell(Text(b.author)),
                 DataCell(Text(b.publisher)),
-                DataCell(Text(b.publishYear)),
+                DataCell(Text(b.publishYear.toString())),
                 DataCell(Text(_catName(b.categoryId))),
                 DataCell(Text(b.status)),
                 DataCell(Row(
@@ -469,5 +483,48 @@ class _BookManagementPageState extends State<BookManagementPage> {
       ],
     );
   }
+
+  Future<List<Category>> fetchCategories() async {
+    final response = await http.get(Uri.parse('http://localhost:3003/api/categories'));
+
+    if (response.statusCode == 200) {
+      final List data = json.decode(response.body);
+      return data.map((json) => Category.fromJson(json)).toList();
+    } else {
+      throw Exception('Lỗi khi tải danh sách category');
+    }
+  }
+
+  Future<List<Book>> fetchBooks() async {
+    final response = await http.get(Uri.parse('http://localhost:3003/api/books'));
+
+    if (response.statusCode == 200) {
+      final List data = json.decode(response.body);
+      return data.map((json) => Book.fromJson(json)).toList();
+    } else {
+      throw Exception('Lỗi khi tải danh sách book');
+    }
+  }
+
+  Future<void> addBookToServer(Book book) async {
+    final response = await http.post(
+      Uri.parse('http://localhost:3003/api/books'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'title': book.title,
+        'author': book.author,
+        'publisher': book.publisher,
+        'publishYear': book.publishYear,
+        'categoryId': book.categoryId,
+        'status': book.status,
+        'timeCreate': book.timeCreate.toIso8601String(),
+      }),
+    );
+
+    if (response.statusCode != 201) {
+      throw Exception('Lỗi khi thêm sách: ${response.body}');
+    }
+  }
+
 }
 
