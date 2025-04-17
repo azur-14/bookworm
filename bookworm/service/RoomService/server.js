@@ -21,5 +21,5 @@ app.use('/api/rooms', roomRoutes);
 
 // Khởi chạy server
 app.listen(PORT, () => {
-    console.log(`🚀 RoomService chạy trên cổng ${PORT}`);
+    console.log(`RoomService chạy trên cổng ${PORT}`);
 });
