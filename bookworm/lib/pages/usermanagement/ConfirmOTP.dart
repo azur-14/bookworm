@@ -1,17 +1,16 @@
+import 'package:bookworm/pages/usermanagement/ResetPassword.dart';
 import 'package:flutter/material.dart';
 
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-
-class ResetPasswordPage extends StatelessWidget {
+class ConfirmOTPPage extends StatelessWidget {
   final String email;
-  final TextEditingController passController = TextEditingController();
-  final TextEditingController rePassController = TextEditingController();
+  final String otp;
+  final TextEditingController otpController = TextEditingController();
 
-  ResetPasswordPage({super.key, required this.email});
+  ConfirmOTPPage({super.key, required this.email, required this.otp});
 
   @override
   Widget build(BuildContext context) {
+    print(otp);
     return Scaffold(
       body: Row(
         children: [
@@ -74,7 +73,7 @@ class ResetPasswordPage extends StatelessWidget {
                       children: [
                         const SizedBox(height: 50),
                         const Text(
-                          'Reset Password',
+                          'Confirm OTP',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 28,
@@ -83,7 +82,7 @@ class ResetPasswordPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Please enter your new password.',
+                          'Please enter your OTP.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 16,
@@ -91,24 +90,11 @@ class ResetPasswordPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 30),
-                        // New Password
-                        TextField(
-                          controller: passController,
-                          obscureText: true,
-                          decoration: InputDecoration(
-                            labelText: 'New Password',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
                         // Confirm Password
                         TextField(
-                          controller: rePassController,
-                          obscureText: true,
+                          controller: otpController,
                           decoration: InputDecoration(
-                            labelText: 'Confirm Password',
+                            labelText: 'Confirm OTP',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -127,34 +113,33 @@ class ResetPasswordPage extends StatelessWidget {
                               ),
                             ),
                             onPressed: () {
-                              // TODO: Handle reset password logic
-                              if (passController.text.trim() == rePassController.text.trim()) {
-                                final newPass = passController.text.trim();
-
-                                if (newPass.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Vui lòng nhập đầy đủ thông tin')),
-                                  );
-                                  return;
-                                }
-
-                                resetPassword(
-                                  email: email,
-                                  newPassword: newPass,
-                                  context: context,
+                              // xac nhan otp
+                              final otpConfirm = otpController.text.trim();
+                              if (otp == otpConfirm) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('OTP is correct.'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                                // Chuyển sang trang reset password
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ResetPasswordPage(email: email),
+                                  ),
                                 );
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Please confirm your password again'),
+                                    content: Text('OTP is incorrect.'),
                                     backgroundColor: Colors.red,
                                   ),
                                 );
                               }
-
                             },
                             child: const Text(
-                              'RESET PASSWORD',
+                              'Confirm',
                               style: TextStyle(fontSize: 16),
                             ),
                           ),
@@ -170,43 +155,5 @@ class ResetPasswordPage extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Future<void> resetPassword({
-    required String email,
-    required String newPassword,
-    required BuildContext context,
-  }) async {
-    final url = Uri.parse('http://localhost:3000/api/users/reset-password');
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': email,
-          'newPassword': newPassword,
-        }),
-      );
-
-      final data = json.decode(response.body);
-
-      if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message']), backgroundColor: Colors.green),
-        );
-
-        // Optional: chuyển về màn hình login
-        Navigator.popUntil(context, (route) => route.isFirst);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message']), backgroundColor: Colors.red),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi đặt lại mật khẩu: $e'), backgroundColor: Colors.red),
-      );
-    }
   }
 }
