@@ -78,7 +78,7 @@ class _SignInPageState extends State<SignInPage> {
                                 context,
                                 MaterialPageRoute(
                                     builder: (context) =>
-                                    const ForgotPasswordPage()),
+                                    ForgotPasswordPage()),
                               );
                             },
                             child: const Text('Forgot password?'),
@@ -205,6 +205,7 @@ class _SignInPageState extends State<SignInPage> {
       final user = data['user'];
       final name = user['name'] as String;
       final role = user['role'] as String;
+      print(data['message']);
 
       // Show welcome dialog, then navigate:
       showDialog(

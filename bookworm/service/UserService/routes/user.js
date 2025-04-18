@@ -1,27 +1,29 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 const User = require('../models/User'); // đường dẫn tới userSchema của bạn
 const router = express.Router();
 
 // Đăng ký
 router.post('/signup', async (req, res) => {
     try {
-      const { username, password, name, email, phone, avatar } = req.body;
+      const { password, role, name, email, phone, avatar } = req.body;
   
-      const existingUser = await User.findOne({ username });
-      if (existingUser) return res.status(400).json({ message: 'Username already exists' });
+      const existingUser = await User.findOne({ email });
+      if (existingUser) return res.status(400).json({ message: 'Email already exists' });
   
       const hashedPassword = await bcrypt.hash(password, 10);
   
       const newUser = new User({
-        username,
         password: hashedPassword,
+        role,
         name,
         email,
         phone,
         avatar  // base64 string
       });
-  
+
       await newUser.save();
       res.status(201).json({ message: 'User registered successfully!' });
     } catch (err) {
@@ -32,10 +34,10 @@ router.post('/signup', async (req, res) => {
 // Đăng nhập
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
     // Tìm người dùng
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ message: 'Tài khoản không tồn tại' });
     }
@@ -46,12 +48,19 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Mật khẩu không chính xác' });
     }
 
+    // Tạo JWT
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET || 'admin123',
+      { expiresIn: '1d' } // Token hết hạn sau 1 ngày
+    );
+
     // Thành công – trả thông tin người dùng (hoặc token sau này)
     res.status(200).json({
-      message: 'Đăng nhập thành công',
+      message: 'Đăng nhập thành công ' + token,
+      token,  // 👈 trả token
       user: {
         id: user._id,
-        username: user.username,
         name: user.name,
         role: user.role,
         avatar: user.avatar,
@@ -65,5 +74,70 @@ router.post('/login', async (req, res) => {
   }
 });
 
-  
+// Gửi mã OTP về email
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    // Kiểm tra email có tồn tại không
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'Email không tồn tại' });
+    }
+
+    // Tạo mã OTP ngẫu nhiên 6 chữ số
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Lưu OTP và thời gian tạo (tuỳ cách bạn muốn lưu - tạm thời response cho đơn giản)
+    user.otpCode = otpCode;
+    user.otpExpires = Date.now() + 5 * 60 * 1000; // hết hạn sau 5 phút
+    await user.save();
+
+    // Gửi email qua Nodemailer
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: 'nhomcnpm1@gmail.com',
+        pass: 'abfk znlx ggfn ycpk',
+      },
+    });
+
+    const mailOptions = {
+      from: 'SOA@gmail.com',
+      to: email,
+      subject: 'OTP Reset Password',
+      text: `Mã OTP đặt lại mật khẩu của bạn là: ${otpCode}`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({ message: 'OTP đã được gửi đến email của bạn', otp: otpCode});
+  } catch (error) {
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
+  }
+});
+
+// đổi mật khẩu
+router.post('/reset-password', async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+
+    // Mã hóa mật khẩu mới
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Cập nhật mật khẩu và xoá OTP
+    user.password = hashedPassword;
+
+    await user.save();
+
+    res.json({ message: 'Đặt lại mật khẩu thành công' });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi server', error: err.message });
+  }
+});
+
 module.exports = router;

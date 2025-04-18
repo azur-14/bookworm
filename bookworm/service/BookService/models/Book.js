@@ -7,6 +7,7 @@ const bookSchema = new mongoose.Schema({
   author: { type: String, required: true },
   publisher: { type: String, required: true },
   publish_year: { type: Number, required: true },
+  price: { type: Number, required: true },
   category_id: { type: String, required: true },
   total_quantity: { type: Number, required: true },
   available_quantity: { type: Number, default: 1 },
