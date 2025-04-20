@@ -3,7 +3,9 @@ import 'package:bookworm/theme/AppColor.dart';
 import 'package:flutter/material.dart';
 import 'package:bookworm/model/Book.dart';
 import 'package:bookworm/model/Category.dart';
+import 'package:bookworm/model/BookItem.dart';
 import 'package:bookworm/pages/customer/BookDetailPage.dart';
+import 'package:bookworm/model/BorowRequest.dart';
 
 class BookShelfPage extends StatefulWidget {
   const BookShelfPage({Key? key}) : super(key: key);
@@ -19,12 +21,11 @@ class _BookShelfPageState extends State<BookShelfPage> {
   String? _selectedCategory;
   String? _selectedPublisher;
 
-  // Ví dụ dữ liệu mẫu
+
   final List<Book> _books = [
     Book(
       id: 'b001',
-      image:
-      'https://marketplace.canva.com/EAD5HAtO1ec/1/0/1003w/canva-v%C3%A0ng-n%C3%A2u-chim-h%C3%ACnh-minh-h%E1%BB%8Da-nh%E1%BB%8F-b%C3%A9-tr%E1%BA%BB-em-s%C3%A1ch-b%C3%ACa-cptvdrYhx3Y.jpg',
+      image: 'https://picsum.photos/200/300',
       title: 'Flutter for Beginners',
       author: 'Alice Smith',
       publisher: 'Tech Books',
@@ -33,7 +34,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
       totalQuantity: 3,
       availableQuantity: 2,
       description: 'An intro to Flutter.',
-      timeCreate: DateTime.parse("2021-01-01T10:00:00"),
+      timeCreate: DateTime(2021, 1, 1),
     ),
     Book(
       id: 'b002',
@@ -46,10 +47,9 @@ class _BookShelfPageState extends State<BookShelfPage> {
       totalQuantity: 2,
       availableQuantity: 0,
       description: 'Classic software patterns.',
-      timeCreate: DateTime.parse("2021-02-01T10:00:00"),
+      timeCreate: DateTime(2021, 2, 1),
     ),
   ];
-
   final List<Category> _categories = [
     Category(id: 'cat1', name: 'Educational'),
     Category(id: 'cat2', name: 'Design'),
@@ -76,9 +76,13 @@ class _BookShelfPageState extends State<BookShelfPage> {
   String _catName(String id) =>
       _categories.firstWhere((c) => c.id == id, orElse: () => Category(id: '', name: 'Unknown')).name;
 
+  bool hasAvailableCopy(int available) {
+    if (available>0) return true;
+    else return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Lọc theo title/author, category, publisher
     final filtered = _books.where((b) {
       final txt = _filter;
       final okText = b.title.toLowerCase().contains(txt) || b.author.toLowerCase().contains(txt);
@@ -91,7 +95,6 @@ class _BookShelfPageState extends State<BookShelfPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // 1. HEADER
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               width: double.infinity,
@@ -108,15 +111,14 @@ class _BookShelfPageState extends State<BookShelfPage> {
                   const Spacer(),
                   IconButton(
                     icon: Icon(
-                        _gridView ? Icons.list : Icons.grid_view,
-                        color: AppColors.primary),
+                      _gridView ? Icons.list : Icons.grid_view,
+                      color: AppColors.primary,
+                    ),
                     onPressed: () => setState(() => _gridView = !_gridView),
                   ),
                 ],
               ),
             ),
-
-            // 2. FILTER BAR
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: LayoutBuilder(builder: (ctx, box) {
@@ -126,7 +128,6 @@ class _BookShelfPageState extends State<BookShelfPage> {
                   runSpacing: 12,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    // Search field
                     SizedBox(
                       width: isNarrow ? box.maxWidth : 300,
                       child: TextField(
@@ -140,8 +141,6 @@ class _BookShelfPageState extends State<BookShelfPage> {
                         ),
                       ),
                     ),
-
-                    // Category filter
                     SizedBox(
                       width: isNarrow ? box.maxWidth : 180,
                       child: DropdownButtonFormField<String>(
@@ -154,14 +153,11 @@ class _BookShelfPageState extends State<BookShelfPage> {
                         ),
                         items: [
                           const DropdownMenuItem(value: null, child: Text('All')),
-                          ..._categories.map((c) =>
-                              DropdownMenuItem(value: c.id, child: Text(c.name))),
+                          ..._categories.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))),
                         ],
                         onChanged: (v) => setState(() => _selectedCategory = v),
                       ),
                     ),
-
-                    // Publisher filter
                     SizedBox(
                       width: isNarrow ? box.maxWidth : 180,
                       child: DropdownButtonFormField<String>(
@@ -174,8 +170,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
                         ),
                         items: [
                           const DropdownMenuItem(value: null, child: Text('All')),
-                          ..._publishers.map((p) =>
-                              DropdownMenuItem(value: p, child: Text(p))),
+                          ..._publishers.map((p) => DropdownMenuItem(value: p, child: Text(p))),
                         ],
                         onChanged: (v) => setState(() => _selectedPublisher = v),
                       ),
@@ -184,8 +179,6 @@ class _BookShelfPageState extends State<BookShelfPage> {
                 );
               }),
             ),
-
-            // 3. CONTENT
             Expanded(
               child: _gridView ? _buildGridView(filtered) : _buildListView(filtered),
             ),
@@ -196,25 +189,23 @@ class _BookShelfPageState extends State<BookShelfPage> {
   }
 
   Widget _buildGridView(List<Book> books) {
-    return LayoutBuilder(
-      builder: (ctx, box) {
-        // (nếu bạn muốn tính toán dựa trên box.maxWidth để thay đổi gridDelegate thì cứ để ở đây)
-        return GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 200,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 200 / 410, // giờ ô cao ~350px → info ~350/4 ≃ 87px
-          ),
-          itemCount: books.length,
-          itemBuilder: (_, i) => _buildGridItem(books[i]),
-        );
-      },
-    );}
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 200,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 200 / 410,
+      ),
+      itemCount: books.length,
+      itemBuilder: (_, i) => _buildGridItem(books[i]),
+    );
+  }
 
-  // 2. Hàm _buildGridItem với flex 3:1 và Flexible cho info:
   Widget _buildGridItem(Book b) {
+    final statusLabel = hasAvailableCopy(b.availableQuantity) ? 'Available' : 'Unavailable';
+    final statusColor = hasAvailableCopy(b.availableQuantity) ? Colors.green : Colors.red;
+
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => Navigator.push(
@@ -226,20 +217,16 @@ class _BookShelfPageState extends State<BookShelfPage> {
       child: Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         elevation: 2,
-        // tránh overflow margin hơi xô lệch, thêm clipBehavior
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // A) COVER chiếm 3/4 chiều cao
             Expanded(
               flex: 3,
               child: b.image.isNotEmpty
                   ? Image.network(b.image, fit: BoxFit.cover)
                   : Container(color: Colors.grey[300]),
             ),
-
-            // B) INFO + BUTTON: Flexible để chỉ lấy đúng kích thước cần
             Flexible(
               flex: 1,
               child: Padding(
@@ -254,27 +241,15 @@ class _BookShelfPageState extends State<BookShelfPage> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
-                    Text('by ${b.author}',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    Text('${_catName(b.categoryId)} · ${b.publishYear}',
-                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text('by ${b.author}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text('${_catName(b.categoryId)} · ${b.publishYear}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
                     const Spacer(),
-                    ElevatedButton(
-                      onPressed: b.availableQuantity > 0 ? () {/*…*/} : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: b.availableQuantity > 0
-                            ? const Color(0xFF7B4F3C)
-                            : Colors.grey,
-                        minimumSize: const Size.fromHeight(32),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6)),
-                        padding: EdgeInsets.zero,
-                      ),
-                      child: Text(
-                        b.availableQuantity > 0
-                            ? 'Borrow (${b.availableQuantity})'
-                            : 'Unavailable',
-                        style: const TextStyle(fontSize: 12),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -287,8 +262,6 @@ class _BookShelfPageState extends State<BookShelfPage> {
     );
   }
 
-
-  // List view
   Widget _buildListView(List<Book> books) {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -296,82 +269,24 @@ class _BookShelfPageState extends State<BookShelfPage> {
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, idx) {
         final b = books[idx];
-        return InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => BookDetailPage(book: b, categories: _categories),
+        final statusLabel = hasAvailableCopy(b.availableQuantity) ? 'Available' : 'Unavailable';
+        final statusColor = hasAvailableCopy(b.availableQuantity) ? Colors.green : Colors.red;
+
+        return Card(
+          child: ListTile(
+            title: Text(b.title),
+            subtitle: Text('by ${b.author}'),
+            trailing: Text(
+              statusLabel,
+              style: TextStyle(
+                color: statusColor,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          child: Card(
-            shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  // Thumbnail
-                  Container(
-                    width: 50,
-                    height: 75,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: b.image.isNotEmpty
-                        ? ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Image.network(b.image, fit: BoxFit.cover),
-                    )
-                        : const Icon(Icons.book, size: 30, color: Colors.white54),
-                  ),
-                  const SizedBox(width: 12),
-                  // Text info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        AutoSizeText(
-                          b.title,
-                          maxLines: 2,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 2),
-                        Text('by ${b.author}',
-                            style: const TextStyle(color: Colors.grey)),
-                        Text('Publisher: ${b.publisher}',
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.grey)),
-                      ],
-                    ),
-                  ),
-                  // Borrow button
-                  ElevatedButton(
-                    onPressed: b.availableQuantity > 0
-                        ? () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            BookDetailPage(book: b, categories: _categories),
-                      ),
-                    )
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: b.availableQuantity > 0
-                          ? const Color(0xFF7B4F3C)
-                          : Colors.grey,
-                      minimumSize: const Size(75, 30),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6)),
-                    ),
-                    child: Text(b.availableQuantity > 0
-                        ? 'Borrow (${b.availableQuantity})'
-                        : 'Unavailable'),
-                  ),
-                ],
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BookDetailPage(book: b, categories: _categories),
               ),
             ),
           ),

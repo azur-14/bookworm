@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:bookworm/model/Book.dart';
 import 'package:bookworm/model/Category.dart';
+import 'package:bookworm/model/BookItem.dart';
+import 'package:bookworm/model/BorowRequest.dart';
 import 'package:intl/intl.dart';
 
-class BookDetailPage extends StatelessWidget {
+class BookDetailPage extends StatefulWidget {
   final Book book;
   final List<Category> categories;
 
@@ -14,17 +16,161 @@ class BookDetailPage extends StatelessWidget {
     required this.categories,
   }) : super(key: key);
 
+  @override
+  State<BookDetailPage> createState() => _BookDetailPageState();
+}
+
+class _BookDetailPageState extends State<BookDetailPage> {
+  final List<BookItem> _bookItems = [
+    BookItem(
+      id: 'copy001',
+      bookId: 'b001',
+      shelfId: 1,
+      shelfName: 'Shelf A',
+      status: 'available',
+      timeCreate: DateTime(2021, 1, 2),
+    ),
+    BookItem(
+      id: 'copy002',
+      bookId: 'b001',
+      shelfId: 1,
+      shelfName: 'Shelf A',
+      status: 'borrowed',
+      timeCreate: DateTime(2021, 1, 2),
+    ),
+    BookItem(
+      id: 'copy003',
+      bookId: 'b002',
+      shelfId: 2,
+      shelfName: 'Shelf B',
+      status: 'borrowed',
+      timeCreate: DateTime(2021, 2, 5),
+    ),
+  ];
+
+  final List<BorrowRequest> _borrowRequests = [];
+  final String _currentUserId = 'u001';
+
   String _catName(String id) =>
-      categories.firstWhere((c) => c.id == id, orElse: () => Category(id: '', name: 'Unknown')).name;
+      widget.categories.firstWhere((c) => c.id == id, orElse: () => Category(id: '', name: 'Unknown')).name;
+
+  bool hasAvailableCopy(String bookId) {
+    return _bookItems.any((item) => item.bookId == bookId && item.status == 'available');
+  }
+
+  BookItem? getFirstAvailableCopy(String bookId) {
+    try {
+      return _bookItems.firstWhere(
+            (item) => item.bookId == bookId && item.status == 'available',
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool isRequestPending(String bookId) {
+    final copyIds = _bookItems
+        .where((item) => item.bookId == bookId)
+        .map((item) => item.id)
+        .toSet();
+    return _borrowRequests.any((r) => copyIds.contains(r.bookCopyId) && r.status == 'pending');
+  }
+
+  void _showBorrowDialog(BuildContext context, Book book) async {
+    DateTime dueDate = DateTime.now().add(const Duration(days: 14));
+
+    await showDialog(
+      context: context,
+      builder: (_) {
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: Text('Mượn sách: ${book.title}'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Chọn ngày trả dự kiến:'),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: dueDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 60)),
+                    );
+                    if (picked != null) {
+                      setState(() => dueDate = picked);
+                    }
+                  },
+                  child: Text('📅 ${DateFormat('yyyy-MM-dd').format(dueDate)}'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Huỷ'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  _submitBorrowRequest(book, dueDate);
+                  Navigator.pop(context);
+                },
+                child: const Text('Xác nhận'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  void _submitBorrowRequest(Book book, DateTime dueDate) {
+    final item = getFirstAvailableCopy(book.id);
+    if (item == null) return;
+
+    setState(() {
+      item.status = 'borrowed';
+      book.availableQuantity--;
+
+      _borrowRequests.add(
+        BorrowRequest(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          userId: _currentUserId,
+          bookId: book.id,
+          bookCopyId: item.id,
+          status: 'pending',
+          requestDate: DateTime.now(),
+          dueDate: dueDate,
+        ),
+      );
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Request sent successfully!'),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final book = widget.book;
     final created = DateFormat('MMM dd, yyyy').format(book.timeCreate);
-    final isAvailable = book.availableQuantity > 0;
+    final isAvailable = hasAvailableCopy(book.id);
+    final isPending = isRequestPending(book.id);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Book Details'),
+        title: const Text('Book Details'),
         backgroundColor: const Color(0xFF594A47),
       ),
       body: Padding(
@@ -32,11 +178,9 @@ class BookDetailPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Top: thumbnail + basic info
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Thumbnail nhỏ
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: SizedBox(
@@ -51,8 +195,6 @@ class BookDetailPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 16),
-
-                // Title + author + meta
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,10 +207,7 @@ class BookDetailPage extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text('by ${book.author}', style: const TextStyle(fontSize: 16, color: Colors.grey)),
                       const SizedBox(height: 4),
-                      Text(
-                        '${_catName(book.categoryId)} · ${book.publishYear}',
-                        style: const TextStyle(fontSize: 14, color: Colors.grey),
-                      ),
+                      Text('${_catName(book.categoryId)} · ${book.publishYear}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
                       const SizedBox(height: 4),
                       Text('Created: $created', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                     ],
@@ -76,10 +215,7 @@ class BookDetailPage extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 24),
-
-            // Stock & availability
             Row(
               children: [
                 Icon(
@@ -96,42 +232,28 @@ class BookDetailPage extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                Text(
-                  '${book.availableQuantity}/${book.totalQuantity}',
-                  style: const TextStyle(fontSize: 16),
-                ),
+                Text('${book.availableQuantity}/${book.totalQuantity}', style: const TextStyle(fontSize: 16)),
               ],
             ),
-
             const SizedBox(height: 24),
-
-            // Description
             if ((book.description ?? '').isNotEmpty) ...[
               const Text('Description', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(book.description!, style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 24),
             ],
-
-            // Borrow button đưa xuống cuối
             ElevatedButton.icon(
-              icon: const Icon(Icons.shopping_basket),
+              icon: Icon(isPending ? Icons.hourglass_top : Icons.shopping_basket),
               label: Text(
-                isAvailable ? 'Borrow (${book.availableQuantity})' : 'Unavailable',
+                isPending ? 'Pending Approval' : 'Borrow (${book.availableQuantity})',
                 style: const TextStyle(fontSize: 16),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isAvailable ? const Color(0xFF7B4F3C) : Colors.grey,
+                backgroundColor: isPending ? Colors.grey : const Color(0xFF7B4F3C),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              onPressed: isAvailable
-                  ? () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('You borrowed "${book.title}"')),
-                );
-              }
-                  : null,
+              onPressed: (!isAvailable || isPending) ? null : () => _showBorrowDialog(context, book),
             ),
           ],
         ),
@@ -139,3 +261,4 @@ class BookDetailPage extends StatelessWidget {
     );
   }
 }
+
