@@ -205,9 +205,10 @@ class _SignInPageState extends State<SignInPage> {
       final user = data['user'];
       final name = user['name'] as String;
       final role = user['role'] as String;
+      final userId = user['id'] ?? user['_id']; // 👈 Tùy theo backend trả về
+
       print(data['message']);
 
-      // Show welcome dialog, then navigate:
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -217,17 +218,15 @@ class _SignInPageState extends State<SignInPage> {
           actions: [
             TextButton(
               onPressed: () async {
-                Navigator.pop(context); // close dialog
-                // Replace sign‑in page with MainLayout
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setString('userRole', role);
                 await prefs.setString('userName', name);
+                await prefs.setString('userId', userId); // ✅ Lưu ID người dùng
+
+                Navigator.pop(context);
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => MainLayout()
-
-                  ),
+                  MaterialPageRoute(builder: (_) => MainLayout()),
                 );
               },
               child: const Text('OK'),
