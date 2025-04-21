@@ -1,5 +1,6 @@
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:bookworm/pages/customer/BorrowHistoryPage.dart';
+import 'package:bookworm/pages/customer/RoomBookingHistoryPage.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -72,11 +73,15 @@ class _MainLayoutState extends State<MainLayout> {
         return [
           NavItem(title: 'Find Books', icon: Icons.search, page: const BookShelfPage()),
           NavItem(
-            title: 'Book Borrowed History',
+            title: 'Book Borrowing History',
             icon: Icons.history,
             page: BorrowHistoryPage(userId: _userId!), // ✅ truyền đúng userId
           ),
-
+          NavItem(
+            title: 'Room Booking History',
+            icon: Icons.history,
+            page: RoomBookingHistoryPage(userId: _userId!),
+          ),
         ];
       default:
         return [
