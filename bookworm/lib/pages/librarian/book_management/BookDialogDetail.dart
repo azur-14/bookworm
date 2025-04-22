@@ -71,8 +71,24 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
             FutureBuilder<List<BookItem>>(
               future: fetchItems(),
               builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    debugPrint('❌ Snapshot error: ${snapshot.error}');
+                    return Text('Lỗi: ${snapshot.error}');
+                  }
+
+                  if (!snapshot.hasData) {
+                    debugPrint('⏳ Đang tải dữ liệu BookItem...');
+                    return const CircularProgressIndicator();
+                  }
+
+                  final items = snapshot.data!;
+                  debugPrint('✅ Đã nhận ${items.length} BookItem');
+                  for (var i = 0; i < items.length; i++) {
+                    final item = items[i];
+                    debugPrint('🔹 Item[$i] => id: ${item.id}, shelfId: ${item.shelfId}, status: ${item.status}, created: ${item.timeCreate}');
+                  }
                 if (!snapshot.hasData) return const CircularProgressIndicator();
-                final items = snapshot.data!;
+
                 final availableShelves = _shelves.where((s) => s.currentCount < s.capacityLimit).toList();
 
                 return Column(children: [
