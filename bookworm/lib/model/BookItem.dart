@@ -2,8 +2,7 @@
 class BookItem {
   final String id;
   String bookId;
-  int? shelfId;        // quan hệ tới Shelf.id
-  String shelfName;    // hoặc fetch riêng
+  int? shelfId;
   String status;       // available, borrowed, damaged, lost
   String? damageImage; // URL hoặc base64 khi hỏng
   DateTime timeCreate;
@@ -12,7 +11,6 @@ class BookItem {
     required this.id,
     required this.bookId,
     this.shelfId,
-    this.shelfName = '',
     required this.status,
     this.damageImage,
     required this.timeCreate,
@@ -23,7 +21,6 @@ class BookItem {
       id: json['id'] as String,
       bookId: json['book_id'] as String,
       shelfId: (json['shelf_id'] as num?)?.toInt(),
-      shelfName: json['shelf_name'] as String? ?? '',
       status: json['status'] as String? ?? 'available',
       damageImage: json['damage_image'] as String?,
       timeCreate: DateTime.parse(json['timeCreate'] as String),

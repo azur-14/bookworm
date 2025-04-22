@@ -82,16 +82,16 @@ class _BookManagementPageState extends State<BookManagementPage> {
     await Future.delayed(const Duration(milliseconds: 500)); // simulate latency
 
     final items = [
-      BookItem(id: '1', bookId: bookId, shelfId: 1, shelfName: 'Shelf A',
+      BookItem(id: '1', bookId: bookId, shelfId: 1,
           status: 'available', damageImage: null,
           timeCreate: DateTime.now().subtract(const Duration(days: 10))),
-      BookItem(id: '2', bookId: bookId, shelfId: 2, shelfName: 'Shelf B',
+      BookItem(id: '2', bookId: bookId, shelfId: 2,
           status: 'borrowed', damageImage: null,
           timeCreate: DateTime.now().subtract(const Duration(days: 8))),
-      BookItem(id: '3', bookId: bookId, shelfId: 3, shelfName: 'Shelf C',
+      BookItem(id: '3', bookId: bookId, shelfId: 3,
           status: 'damaged', damageImage: 'https://example.com/damage3.jpg',
           timeCreate: DateTime.now().subtract(const Duration(days: 5))),
-      BookItem(id: '4', bookId: bookId, shelfId: null, shelfName: '',
+      BookItem(id: '4', bookId: bookId, shelfId: null,
           status: 'lost', damageImage: null,
           timeCreate: DateTime.now().subtract(const Duration(days: 2))),
     ];
@@ -445,7 +445,6 @@ class _BookManagementPageState extends State<BookManagementPage> {
                       rows: items.map((it) {
                         return DataRow(cells: [
                           DataCell(Text(it.id.toString())),
-                          DataCell(Text(it.shelfName)),
                           DataCell(Text(it.status)),
                           DataCell(Text(DateFormat('yyyy-MM-dd').format(it.timeCreate))),
                           DataCell(
@@ -487,7 +486,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
           (s) => s.id == it.shelfId,
       orElse: () => Shelf(
         id: it.shelfId!,
-        name: it.shelfName,
+        name: 'Shelf A',
         description: '',
         capacityLimit: 0,
         currentCount: 0,
@@ -556,7 +555,6 @@ class _BookManagementPageState extends State<BookManagementPage> {
                     id: it.id,
                     bookId: it.bookId,
                     shelfId: selShelf?.id,
-                    shelfName: selShelf?.name ?? '',
                     status: status,
                     damageImage: damage,
                     timeCreate: it.timeCreate,

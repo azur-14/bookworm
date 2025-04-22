@@ -44,7 +44,6 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
       id: 'copy00$i',
       bookId: 'b00${i % 4}',
       shelfId: 1,
-      shelfName: 'Shelf A',
       status: 'borrowed',
       timeCreate: DateTime(2023, i + 1, 1),
     ));
