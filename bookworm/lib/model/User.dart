@@ -22,4 +22,27 @@ class User {
     required this.phone,
     required this.timeCreate,
   });
+
+  factory User.fromJson(Map<String, dynamic> json) => User(
+    id: json['_id'] ?? json['id'], // MongoDB dùng _id
+    avatar: json['avatar'] ?? '',
+    email: json['email'],
+    password: json['password'],
+    role: json['role'],
+    status: json['status'],
+    name: json['name'],
+    phone: json['phone'] ?? '',
+    timeCreate: DateTime.parse(json['timeCreate']),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'avatar': avatar,
+    'email': email,
+    'password': password,
+    'role': role,
+    'status': status,
+    'name': name,
+    'phone': phone,
+    'timeCreate': timeCreate.toIso8601String(),
+  };
 }

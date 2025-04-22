@@ -7,6 +7,9 @@ import 'package:intl/intl.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import '../../model/User.dart';
 
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
 /// Validate email with a regular expression.
 bool isValidEmail(String email) {
   final RegExp emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
@@ -48,41 +51,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   Timer? _timer;
 
   // Sample user data (3 users).
-  final List<User> _users = [
-    User(
-      id: '1',
-      avatar: '',
-      password: 'admin123',
-      role: 'admin', // Will be hidden from the list.
-      status: 'active',
-      name: 'Admin One',
-      email: 'admin@example.com',
-      phone: '111222333',
-      timeCreate: DateTime.parse("2021-01-01T10:00:00"),
-    ),
-    User(
-      id: '2',
-      avatar: '',
-      password: 'lib456',
-      role: 'customer',
-      status: 'active',
-      name: 'Librarian One',
-      email: 'librarian@example.com',
-      phone: '444555666',
-      timeCreate: DateTime.parse("2021-02-02T11:00:00"),
-    ),
-    User(
-      id: '3',
-      avatar: '',
-      password: 'cust789',
-      role: 'customer',
-      status: 'active',
-      name: 'Customer One',
-      email: 'customer@example.com',
-      phone: '777888999',
-      timeCreate: DateTime.now(),
-    ),
-  ];
+  final List<User> _users = [];
 
   // Allow roles: only librarian and customer.
   final List<String> _roles = ['librarian', 'customer'];
@@ -97,6 +66,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
         _currentTime = DateTime.now();
       });
     });
+
+    _loadUsers();
   }
 
   @override
@@ -527,6 +498,30 @@ class _UserManagementPageState extends State<UserManagementPage> {
         ],
       ),
     );
+  }
+
+  Future<List<User>> fetchUsers() async {
+    final response = await http.get(Uri.parse('http://localhost:3000/api/users')); // Android emulator dùng 10.0.2.2
+
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = json.decode(response.body);
+      return jsonList.map((json) => User.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load users: ${response.body}');
+    }
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final usersFromServer = await fetchUsers();
+      setState(() {
+        _users
+          ..clear()
+          ..addAll(usersFromServer);
+      });
+    } catch (e) {
+      debugPrint('Lỗi tải danh sách user: $e');
+    }
   }
 
   /// Dialog to confirm deletion of a user.

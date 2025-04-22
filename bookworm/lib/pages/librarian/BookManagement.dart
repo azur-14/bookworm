@@ -23,32 +23,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
   final List<Category> _categories = [];
   final Map<String, List<BookItem>> _mockBookItems = {};
 
-  final List<Shelf> _shelves = [
-    Shelf(
-      id: 1,
-      name: 'Shelf A',
-      description: 'First floor shelf',
-      capacityLimit: 100,
-      currentCount: 20,
-      timeCreate: DateTime.now().subtract(const Duration(days: 30)),
-    ),
-    Shelf(
-      id: 2,
-      name: 'Shelf B',
-      description: 'Second floor shelf',
-      capacityLimit: 80,
-      currentCount: 50,
-      timeCreate: DateTime.now().subtract(const Duration(days: 20)),
-    ),
-    Shelf(
-      id: 3,
-      name: 'Shelf C',
-      description: 'Basement shelf',
-      capacityLimit: 50,
-      currentCount: 5,
-      timeCreate: DateTime.now().subtract(const Duration(days: 10)),
-    ),
-  ];
+  final List<Shelf> _shelves = [];
 
   @override
   void initState() {
@@ -58,7 +33,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
       setState(() => _currentTime = DateTime.now());
     });
     _loadData();
-
+    _loadShelves();
   }
 
   Future<void> _loadData() async {
@@ -72,6 +47,19 @@ class _BookManagementPageState extends State<BookManagementPage> {
         ..clear()
         ..addAll(books);
     });
+  }
+
+  Future<void> _loadShelves() async {
+    try {
+      final fetched = await fetchShelves();
+      setState(() {
+        _shelves
+          ..clear()
+          ..addAll(fetched);
+      });
+    } catch (e) {
+      debugPrint('Error loading shelves: $e');
+    }
   }
 
   // 2) Khi fetch, nếu đã có trong cache thì trả cache, nếu không thì tạo mới
@@ -590,6 +578,7 @@ class _BookManagementPageState extends State<BookManagementPage> {
     final idx = list.indexWhere((it) => it.id == item.id);
     if (idx >= 0) list[idx] = item;
   }
+
   // --- 4) Delete Book ---
   void _delete(Book b) {
     showDialog(
@@ -798,6 +787,17 @@ class _BookManagementPageState extends State<BookManagementPage> {
     await http.delete(Uri.parse('http://localhost:3003/api/books/$id'));
     if (resp.statusCode != 200) {
       throw Exception('Delete book failed: ${resp.body}');
+    }
+  }
+
+  Future<List<Shelf>> fetchShelves() async {
+    final response = await http.get(Uri.parse('http://localhost:3003/api/shelves'));
+
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = json.decode(response.body);
+      return jsonList.map((json) => Shelf.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load shelves: ${response.body}');
     }
   }
 }

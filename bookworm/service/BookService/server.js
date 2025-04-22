@@ -6,6 +6,7 @@ const cors = require('cors');
 
 const categoryRoutes = require('./routes/category');
 const bookRoutes = require('./routes/book');
+const shelfRoutes = require('./routes/shelf');
 
 const app = express();
 const PORT = process.env.PORT;
@@ -20,6 +21,7 @@ connectDB();
 // Routes
 app.use('/api/categories', categoryRoutes);
 app.use('/api/books', bookRoutes);
+app.use('/api/shelves', shelfRoutes);
 
 // Khởi chạy server
 app.listen(PORT, () => {
