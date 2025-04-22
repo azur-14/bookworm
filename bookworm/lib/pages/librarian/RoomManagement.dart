@@ -20,10 +20,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
   final TextEditingController _searchController = TextEditingController();
   List<Room> _filteredRooms = [];
 
-  // Danh sách phòng mẫu.
   final List<Room> _rooms = [];
-
-  // Danh sách yêu cầu đặt phòng.
   Map<String, List<RoomBookingRequest>> _roomBookingRequests = {};
 
   @override
@@ -47,7 +44,6 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
     super.dispose();
   }
 
-  // Hàm tính trạng thái của phòng dựa trên booking request được phê duyệt và thời gian hiện tại.
   String _getRoomStatus(Room room) {
     List<RoomBookingRequest> requests = _roomBookingRequests[room.id] ?? [];
     DateTime now = DateTime.now();
@@ -76,7 +72,6 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
     );
   }
 
-  // Hộp thoại xem chi tiết phòng với danh sách booking request và cập nhật trạng thái.
   Future<void> _showViewRoomDialog(Room room) async {
     List<RoomBookingRequest> requests = _roomBookingRequests[room.id] ?? [];
     await showDialog(
@@ -108,10 +103,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
                     _buildReadOnlyField('Fee per hour', room.fee.toString()),
                     _buildReadOnlyField('Status', _getRoomStatus(room)),
                     const SizedBox(height: 20),
-                    const Text(
-                      'Booking Requests',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                    const Text('Booking Requests', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     requests.isNotEmpty
                         ? Column(
@@ -135,26 +127,11 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
                                   children: [
                                     Text('User ID: ${request.userId}'),
                                     Text('Purpose: ${request.purpose}'),
-                                    Text(
-                                      'Request Time: ${DateFormat('hh:mm a, MMM dd, yyyy').format(request.requestTime)}',
-                                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                                    ),
-                                    Text(
-                                      'Start: ${DateFormat('hh:mm a, MMM dd, yyyy').format(request.startTime)}',
-                                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                                    ),
-                                    Text(
-                                      'End: ${DateFormat('hh:mm a, MMM dd, yyyy').format(request.endTime)}',
-                                      style: const TextStyle(fontSize: 12, color: Colors.black54),
-                                    ),
-                                    Text(
-                                      'Status: ${request.status}',
-                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                    ),
-                                    Text(
-                                      'Total Fee: ${totalFee.toStringAsFixed(0)}',
-                                      style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
-                                    ),
+                                    Text('Request Time: ${DateFormat('hh:mm a, MMM dd, yyyy').format(request.requestTime)}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                    Text('Start: ${DateFormat('hh:mm a, MMM dd, yyyy').format(request.startTime)}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                    Text('End: ${DateFormat('hh:mm a, MMM dd, yyyy').format(request.endTime)}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                                    Text('Status: ${request.status}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    Text('Total Fee: ${totalFee.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
                                   ],
                                 ),
                               ),
@@ -167,7 +144,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
                                         setStateDialog(() {
                                           request.status = 'approved';
                                         });
-                                        setState(() {}); // cập nhật trạng thái tổng thể nếu cần.
+                                        setState(() {});
                                       },
                                     ),
                                     IconButton(
@@ -225,6 +202,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
             ],
             rows: _filteredRooms.map((Room room) {
               String status = _getRoomStatus(room);
+              bool hasRequests = _roomBookingRequests[room.id]?.isNotEmpty ?? false;
               return DataRow(cells: [
                 DataCell(Text(room.id)),
                 DataCell(Text(room.name, overflow: TextOverflow.ellipsis)),
@@ -236,13 +214,29 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.visibility, color: Colors.blue),
-                        onPressed: () {
-                          _showViewRoomDialog(room);
-                        },
+                      Tooltip(
+                        message: hasRequests ? 'Có yêu cầu đặt phòng' : 'Không có yêu cầu đặt phòng',
+                        child: Stack(
+                          alignment: Alignment.topRight,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                Icons.visibility,
+                                color: hasRequests ? Colors.red : Colors.blue,
+                              ),
+                              onPressed: () {
+                                _showViewRoomDialog(room);
+                              },
+                            ),
+                            if (hasRequests)
+                              const Positioned(
+                                right: 4,
+                                top: 4,
+                                child: Icon(Icons.circle, size: 10, color: Colors.orange),
+                              ),
+                          ],
+                        ),
                       ),
-                      // Có thể thêm nút Update/Delete nếu cần.
                     ],
                   ),
                 ),
@@ -256,9 +250,6 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
 
   @override
   Widget build(BuildContext context) {
-    final String formattedTime = DateFormat('hh:mm a').format(_currentTime);
-    final String formattedDate = DateFormat('MMM dd, yyyy').format(_currentTime);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -269,10 +260,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Room Management',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
+                const Text('Room Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -325,7 +313,6 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
     });
   }
 
-
   Future<List<Room>> fetchRooms() async {
     final response = await http.get(Uri.parse('http://localhost:3001/api/rooms'));
 
@@ -371,5 +358,4 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
       print('Lỗi khi tải booking requests: $e');
     }
   }
-
 }
