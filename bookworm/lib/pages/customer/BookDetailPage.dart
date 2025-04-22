@@ -1,10 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:bookworm/model/Book.dart';
 import 'package:bookworm/model/Category.dart';
-import 'package:bookworm/model/BookItem.dart';
-import 'package:bookworm/model/BorowRequest.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 
 class BookDetailPage extends StatefulWidget {
   final Book book;
@@ -21,139 +22,139 @@ class BookDetailPage extends StatefulWidget {
 }
 
 class _BookDetailPageState extends State<BookDetailPage> {
-  final List<BookItem> _bookItems = [
-    BookItem(
-      id: 'copy001',
-      bookId: 'b001',
-      shelfId: 1,
-      status: 'available',
-      timeCreate: DateTime(2021, 1, 2),
-    ),
-    BookItem(
-      id: 'copy002',
-      bookId: 'b001',
-      shelfId: 1,
-      status: 'borrowed',
-      timeCreate: DateTime(2021, 1, 2),
-    ),
-    BookItem(
-      id: 'copy003',
-      bookId: 'b002',
-      shelfId: 2,
-      status: 'borrowed',
-      timeCreate: DateTime(2021, 2, 5),
-    ),
-  ];
+  int _availableCount = 0;
+  String? _currentUserId;
+  bool _alreadyBorrowed = false;
 
-  final List<BorrowRequest> _borrowRequests = [];
-  final String _currentUserId = 'u001';
-
-  String _catName(String id) =>
-      widget.categories.firstWhere((c) => c.id == id, orElse: () => Category(id: '', name: 'Unknown')).name;
-
-  bool hasAvailableCopy(String bookId) {
-    return _bookItems.any((item) => item.bookId == bookId && item.status == 'available');
+  @override
+  void initState() {
+    super.initState();
+    initUser();
+    _loadAvailableCount();
   }
 
-  BookItem? getFirstAvailableCopy(String bookId) {
+  String _catName(String id) => widget.categories
+      .firstWhere((c) => c.id == id, orElse: () => Category(id: '', name: 'Unknown'))
+      .name;
+
+  Future<String?> getCurrentUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userId'); // có thể null nếu chưa đăng nhập
+  }
+
+  void initUser() async {
+    _currentUserId = await getCurrentUserId();
+    await _checkAlreadyBorrowed();
+    print(_alreadyBorrowed);
+  }
+
+
+  Future<void> _loadAvailableCount() async {
     try {
-      return _bookItems.firstWhere(
-            (item) => item.bookId == bookId && item.status == 'available',
-      );
-    } catch (_) {
-      return null;
+      final res = await http.get(Uri.parse('http://localhost:3003/api/bookcopies/available-count/${widget.book.id}'));
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        setState(() => _availableCount = data['availableCount']);
+      }
+    } catch (e) {
+      debugPrint('Error loading available count: $e');
     }
   }
 
-  bool isRequestPending(String bookId) {
-    final copyIds = _bookItems
-        .where((item) => item.bookId == bookId)
-        .map((item) => item.id)
-        .toSet();
-    return _borrowRequests.any((r) => copyIds.contains(r.bookCopyId) && r.status == 'pending');
+  Future<void> _checkAlreadyBorrowed() async {
+    if (_currentUserId == null) return;
+    print(_currentUserId);
+    print(widget.book.id);
+
+    final url = Uri.parse('http://localhost:3002/api/borrowRequest/check/$_currentUserId/${widget.book.id}');
+    final res = await http.get(url);
+
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      setState(() => _alreadyBorrowed = data['alreadyBorrowed'] == true);
+    }
   }
 
-  void _showBorrowDialog(BuildContext context, Book book) async {
+  Future<void> _submitBorrowRequest(DateTime dueDate) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://localhost:3002/api/borrowRequest'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'user_id': _currentUserId,
+          'book_id': widget.book.id,
+          'due_date': dueDate.toIso8601String(),
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        setState(() {
+          _availableCount--;
+          _alreadyBorrowed = true;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Borrow request sent!'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ));
+      } else {
+        throw Exception(json.decode(response.body)['error']);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Failed: $e'),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
+
+  void _showBorrowDialog() async {
     DateTime dueDate = DateTime.now().add(const Duration(days: 14));
 
     await showDialog(
       context: context,
-      builder: (_) {
-        return StatefulBuilder(builder: (context, setState) {
-          return AlertDialog(
-            title: Text('Mượn sách: ${book.title}'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Chọn ngày trả dự kiến:'),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: dueDate,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 60)),
-                    );
-                    if (picked != null) {
-                      setState(() => dueDate = picked);
-                    }
-                  },
-                  child: Text('📅 ${DateFormat('yyyy-MM-dd').format(dueDate)}'),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Huỷ'),
-              ),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setStateDialog) => AlertDialog(
+          title: Text('Mượn sách: ${widget.book.title}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Chọn ngày trả dự kiến:'),
+              const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: () {
-                  _submitBorrowRequest(book, dueDate);
-                  Navigator.pop(context);
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: dueDate,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 60)),
+                  );
+                  if (picked != null) {
+                    setStateDialog(() => dueDate = picked);
+                  }
                 },
-                child: const Text('Xác nhận'),
+                child: Text('📅 ${DateFormat('yyyy-MM-dd').format(dueDate)}'),
               ),
             ],
-          );
-        });
-      },
-    );
-  }
-
-  void _submitBorrowRequest(Book book, DateTime dueDate) {
-    final item = getFirstAvailableCopy(book.id);
-    if (item == null) return;
-
-    setState(() {
-      item.status = 'borrowed';
-      book.availableQuantity--;
-
-      _borrowRequests.add(
-        BorrowRequest(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          userId: _currentUserId,
-          bookId: book.id,
-          bookCopyId: item.id,
-          status: 'pending',
-          requestDate: DateTime.now(),
-          dueDate: dueDate,
-        ),
-      );
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 8),
-            Text('Request sent successfully!'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
+            ElevatedButton(
+              onPressed: () {
+                _submitBorrowRequest(dueDate);
+                Navigator.pop(ctx);
+              },
+              child: const Text('Xác nhận'),
+            ),
           ],
         ),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -162,8 +163,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
   Widget build(BuildContext context) {
     final book = widget.book;
     final created = DateFormat('MMM dd, yyyy').format(book.timeCreate);
-    final isAvailable = hasAvailableCopy(book.id);
-    final isPending = isRequestPending(book.id);
+    final isAvailable = _availableCount > 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -175,6 +175,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Book info
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -212,7 +213,10 @@ class _BookDetailPageState extends State<BookDetailPage> {
                 ),
               ],
             ),
+
             const SizedBox(height: 24),
+
+            // Availability
             Row(
               children: [
                 Icon(
@@ -229,28 +233,34 @@ class _BookDetailPageState extends State<BookDetailPage> {
                   ),
                 ),
                 const Spacer(),
-                Text('${book.availableQuantity}/${book.totalQuantity}', style: const TextStyle(fontSize: 16)),
+                Text('$_availableCount/${book.totalQuantity}', style: const TextStyle(fontSize: 16)),
               ],
             ),
+
             const SizedBox(height: 24),
+
+            // Description
             if ((book.description ?? '').isNotEmpty) ...[
               const Text('Description', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(book.description!, style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 24),
             ],
+
+            // Borrow button
             ElevatedButton.icon(
-              icon: Icon(isPending ? Icons.hourglass_top : Icons.shopping_basket),
+              icon: Icon(_alreadyBorrowed ? Icons.hourglass_top : Icons.shopping_basket),
               label: Text(
-                isPending ? 'Pending Approval' : 'Borrow (${book.availableQuantity})',
+                _alreadyBorrowed ? 'Pending Approval' : 'Borrow ($_availableCount)',
                 style: const TextStyle(fontSize: 16),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: isPending ? Colors.grey : const Color(0xFF7B4F3C),
+                backgroundColor: _alreadyBorrowed ? Colors.grey[300] : const Color(0xFF7B4F3C),
+                foregroundColor: Colors.black54,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              onPressed: (!isAvailable || isPending) ? null : () => _showBorrowDialog(context, book),
+              onPressed: (!isAvailable || _alreadyBorrowed) ? null : _showBorrowDialog,
             ),
           ],
         ),
@@ -258,4 +268,3 @@ class _BookDetailPageState extends State<BookDetailPage> {
     );
   }
 }
-

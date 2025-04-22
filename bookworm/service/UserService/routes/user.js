@@ -140,4 +140,64 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// Lấy danh sách người dùng KHÔNG phải admin hoặc librarian
+router.get('/', async (req, res) => {
+  try {
+    const users = await User.find({
+      role: { $nin: ['admin', 'librarian'] }
+    }).sort({ timeCreate: -1 });
+
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi khi truy vấn người dùng.' });
+  }
+});
+
+// update thông tin người dùng hiện tại
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if the provided id is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    const updated = await User.findByIdAndUpdate(
+      id,
+      { $set: req.body },
+      { new: true, runValidators: true }
+    );
+
+    if (!updated) return res.status(404).json({ error: 'User not found' });
+
+    res.json({
+      message: 'User updated successfully',
+      user: updated,
+    });
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).json({ error: 'Update failed' });
+  }
+});
+
+// lấy thông tin người dùng
+const mongoose = require('mongoose');
+
+router.get('/:id', async (req, res) => {
+  try {
+    // Kiểm tra định dạng ObjectId hợp lệ
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Fetch failed' });
+  }
+});
+
 module.exports = router;

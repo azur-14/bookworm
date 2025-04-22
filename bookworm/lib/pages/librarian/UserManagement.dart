@@ -501,7 +501,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   Future<List<User>> fetchUsers() async {
-    final response = await http.get(Uri.parse('http://localhost:3000/api/users')); // Android emulator dùng 10.0.2.2
+    final response = await http.get(Uri.parse('http://localhost:3000/api/users'));
 
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = json.decode(response.body);

@@ -3,6 +3,10 @@ import 'package:bookworm/pages/customer/BorrowHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingHistoryPage.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
 
 import 'package:bookworm/pages/Dashboard.dart';
 import 'package:bookworm/pages/librarian/BookManagement.dart';
@@ -33,7 +37,11 @@ class _MainLayoutState extends State<MainLayout> {
   String? _userName;
   String? _userRole;
   int _selectedIndex = 0;
+  String? _avatarBase64;
   final SidebarManager _sidebar = SidebarManager();
+  final _nameCtl = TextEditingController();
+  final _emailCtl = TextEditingController();
+  final _phoneCtl = TextEditingController();
 
   @override
   void initState() {
@@ -197,77 +205,142 @@ class _MainLayoutState extends State<MainLayout> {
       ],
     );
   }
-  void showEditProfileDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Container(
-            width: 400,
-            padding: const EdgeInsets.all(20),
-            color: Colors.white,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header
-                  Row(
-                    children: [
-                      const Icon(Icons.settings, size: 24),
-                      const SizedBox(width: 8),
-                      const Text("Edit Profile", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
+  void showEditProfileDialog(BuildContext context) async {
+    if (_userId == null) return;
+
+    try {
+      final user = await fetchUserById(_userId!);
+      _nameCtl.text = user['name'] ?? '';
+      _emailCtl.text = user['email'] ?? '';
+      _phoneCtl.text = user['phone'] ?? '';
+      _avatarBase64 = user['avatar'];
+
+      showDialog(
+        context: context,
+        builder: (_) {
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: StatefulBuilder(
+              builder: (context, setStateDialog) {
+                return Container(
+                  width: 400,
+                  padding: const EdgeInsets.all(20),
+                  color: Colors.white,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Header
+                        Row(
+                          children: [
+                            const Icon(Icons.settings, size: 24),
+                            const SizedBox(width: 8),
+                            const Text("Edit Profile", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            const Spacer(),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                          ],
+                        ),
+                        const Divider(),
+                        const SizedBox(height: 8),
+
+                        // Avatar selector (StatefulBuilder-aware)
+                        GestureDetector(
+                          onTap: () async {
+                            final picker = ImagePicker();
+                            final image = await picker.pickImage(source: ImageSource.gallery);
+                            if (image != null) {
+                              final bytes = await image.readAsBytes();
+                              setStateDialog(() {
+                                _avatarBase64 = base64Encode(bytes);
+                              });
+                            }
+                          },
+                          child: Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.brown.shade300,
+                              image: _avatarBase64 != null
+                                  ? DecorationImage(
+                                image: MemoryImage(base64Decode(_avatarBase64!)),
+                                fit: BoxFit.cover,
+                              )
+                                  : null,
+                            ),
+                            child: _avatarBase64 == null
+                                ? const Icon(Icons.person, size: 48, color: Colors.white)
+                                : null,
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        _buildTextField("Name", _nameCtl),
+                        _buildTextField("Email", _emailCtl),
+                        _buildTextField("Phone", _phoneCtl),
+
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildButton("CANCEL", Colors.grey.shade300, Colors.black, () {
+                              Navigator.of(context).pop();
+                            }),
+                            _buildButton("CONFIRM", Colors.black, Colors.white, () async {
+                              try {
+                                await updateUserInfo(_userId!, {
+                                  'name': _nameCtl.text,
+                                  'phone': _phoneCtl.text,
+                                  'avatar': _avatarBase64,
+                                });
+
+                                final prefs = await SharedPreferences.getInstance();
+                                await prefs.setString('userName', _nameCtl.text);
+                                await prefs.setString('userRole', _userRole ?? 'customer');
+
+                                setState(() {
+                                  _userName = _nameCtl.text;
+                                });
+
+                                Navigator.of(context).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Profile updated")),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Update failed: $e")),
+                                );
+                              }
+                            }),
+                          ],
+                        )
+                      ],
+                    ),
                   ),
-                  const Divider(),
-                  const SizedBox(height: 8),
-
-                  // Avatar placeholder
-                  Container(
-                    width: 100,
-                    height: 100,
-                    color: Colors.brown.shade300,
-                    child: const Icon(Icons.person, size: 48, color: Colors.white),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Input fields
-                  _buildTextField("Username"),
-                  _buildTextField("Email"),
-                  _buildTextField("Name"),
-                  _buildTextField("Phone Number"),
-                  _buildTextField("Role"),
-
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildButton("CANCEL", Colors.grey.shade300, Colors.black, () {
-                        Navigator.of(context).pop();
-                      }),
-                      _buildButton("CONFIRM", Colors.black, Colors.white, () {
-                        // TODO: Confirm logic here
-                        Navigator.of(context).pop();
-                      }),
-                    ],
-                  )
-                ],
-              ),
+                );
+              },
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error loading profile: $e")),
+      );
+    }
   }
-  Widget _buildTextField(String label) {
+
+  Widget _buildTextField(String label, TextEditingController controller) {
+    bool isEmail = label.toLowerCase() == "email";
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: TextField(
+        readOnly: isEmail,
+        controller: controller,
         decoration: InputDecoration(
           labelText: label,
           filled: true,
@@ -312,5 +385,20 @@ class _MainLayoutState extends State<MainLayout> {
       drawer: _buildDrawer(),
       body: _body(),
     );
+  }
+
+  Future<Map<String, dynamic>> fetchUserById(String userId) async {
+    final res = await http.get(Uri.parse('http://localhost:3000/api/users/$userId'));
+    if (res.statusCode == 200) return json.decode(res.body);
+    throw Exception('Failed to fetch user');
+  }
+
+  Future<void> updateUserInfo(String userId, Map<String, dynamic> data) async {
+    final res = await http.put(
+      Uri.parse('http://localhost:3000/api/users/$userId'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(data),
+    );
+    if (res.statusCode != 200) throw Exception('Update failed');
   }
 }
