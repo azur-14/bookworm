@@ -25,6 +25,7 @@ router.post('/', async (req, res) => {
       author,
       publisher,
       publish_year,
+      price,
       category_id,
       total_quantity,
       available_quantity,
@@ -37,6 +38,7 @@ router.post('/', async (req, res) => {
       title,
       author,
       publisher,
+      price,
       publish_year,
       category_id,
       total_quantity,
@@ -51,5 +53,7 @@ router.post('/', async (req, res) => {
     res.status(400).json({ message: 'Lỗi khi thêm sách', error: err.message });
   }
 });
+
+
 
 module.exports = router;

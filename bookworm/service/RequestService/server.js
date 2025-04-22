@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 
 const roomBookingRequestRoutes = require('./routes/roomBookingRequest');
+const borrowRequestRoutes = require('./routes/borrowRequest');
 
 const app = express();
 const PORT = process.env.PORT;
@@ -18,6 +19,7 @@ connectDB();
 
 // Routes
 app.use('/api/roomBookingRequest', roomBookingRequestRoutes);
+app.use('/api/borrowRequest', borrowRequestRoutes);
 
 // Khởi chạy server
 app.listen(PORT, () => {

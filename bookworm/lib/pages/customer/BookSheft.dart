@@ -6,6 +6,8 @@ import 'package:bookworm/model/Category.dart';
 import 'package:bookworm/model/BookItem.dart';
 import 'package:bookworm/pages/customer/BookDetailPage.dart';
 import 'package:bookworm/model/BorowRequest.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class BookShelfPage extends StatefulWidget {
   const BookShelfPage({Key? key}) : super(key: key);
@@ -22,46 +24,15 @@ class _BookShelfPageState extends State<BookShelfPage> {
   String? _selectedPublisher;
 
 
-  final List<Book> _books = [
-    Book(
-      id: 'b001',
-      image: 'https://picsum.photos/200/300',
-      title: 'Flutter for Beginners',
-      author: 'Alice Smith',
-      publisher: 'Tech Books',
-      publishYear: 2020,
-      categoryId: 'cat1',
-      totalQuantity: 3,
-      availableQuantity: 2,
-      description: 'An intro to Flutter.',
-      timeCreate: DateTime(2021, 1, 1),
-    ),
-    Book(
-      id: 'b002',
-      image: '',
-      title: 'Design Patterns',
-      author: 'Erich Gamma',
-      publisher: 'Addison-Wesley',
-      publishYear: 1994,
-      categoryId: 'cat2',
-      totalQuantity: 2,
-      availableQuantity: 0,
-      description: 'Classic software patterns.',
-      timeCreate: DateTime(2021, 2, 1),
-    ),
-  ];
-  final List<Category> _categories = [
-    Category(id: 'cat1', name: 'Educational'),
-    Category(id: 'cat2', name: 'Design'),
-    Category(id: 'cat3', name: 'Fiction'),
-  ];
+  final List<Book> _books = [];
+  final List<Category> _categories = [];
 
-  List<String> get _publishers =>
-      _books.map((b) => b.publisher).toSet().toList()..sort();
+  final List<String> _publishers = [];
 
   @override
   void initState() {
     super.initState();
+    _loadData();
     _searchCtl.addListener(() {
       setState(() => _filter = _searchCtl.text.toLowerCase());
     });
@@ -79,6 +50,49 @@ class _BookShelfPageState extends State<BookShelfPage> {
   bool hasAvailableCopy(int available) {
     if (available>0) return true;
     else return false;
+  }
+
+  Future<List<Book>> fetchBooks() async {
+    final response = await http.get(Uri.parse('http://localhost:3003/api/books'));
+
+    if (response.statusCode == 200) {
+      final List jsonList = json.decode(response.body);
+      return jsonList.map((json) => Book.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load books: ${response.body}');
+    }
+  }
+
+  Future<List<Category>> fetchCategories() async {
+    final response = await http.get(Uri.parse('http://localhost:3003/api/categories'));
+    if (response.statusCode == 200) {
+      final List data = json.decode(response.body);
+      return data.map((j) => Category.fromJson(j)).toList();
+    }
+    throw Exception('Failed to load categories');
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final books = await fetchBooks();
+      final categories = await fetchCategories();
+
+      final publishers = books.map((b) => b.publisher).toSet().toList()..sort();
+
+      setState(() {
+        _books
+          ..clear()
+          ..addAll(books);
+        _categories
+          ..clear()
+          ..addAll(categories);
+        _publishers
+          ..clear()
+          ..addAll(publishers);
+      });
+    } catch (e) {
+      debugPrint('Lỗi khi tải dữ liệu: $e');
+    }
   }
 
   @override
