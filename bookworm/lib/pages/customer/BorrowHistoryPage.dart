@@ -5,6 +5,8 @@ import 'package:bookworm/model/BookItem.dart';
 import 'package:bookworm/model/BorowRequest.dart';
 import 'package:bookworm/model/ReturnRequest.dart';
 import 'package:bookworm/theme/AppColor.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class BorrowHistoryPage extends StatefulWidget {
   final String userId;
@@ -23,45 +25,73 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
   @override
   void initState() {
     super.initState();
-    _loadFakeData();
+    _loadData();
   }
 
-  void _loadFakeData() {
-    books = List.generate(4, (i) => Book(
-      id: 'b00$i',
-      image: 'https://picsum.photos/200/30${i + 1}',
-      title: 'Book $i',
-      author: 'Author $i',
-      publisher: 'Pub $i',
-      publishYear: 2020 + i,
-      categoryId: 'cat$i',
-      totalQuantity: 3,
-      availableQuantity: 1,
-      timeCreate: DateTime(2021, i + 1, 1),
-    ));
+  Future<void> _loadData() async {
+    final fetchedBooks = await fetchBooks();
+    final fetchedBorrows = await fetchBorrowRequests(widget.userId);
+    final fetchedReturns = await fetchReturnRequests(widget.userId);
+    final fetchedItems = await fetchBookItems();
 
-    bookItems = List.generate(8, (i) => BookItem(
-      id: 'copy00$i',
-      bookId: 'b00${i % 4}',
-      shelfId: 1,
-      status: 'borrowed',
-      timeCreate: DateTime(2023, i + 1, 1),
-    ));
+    final usedItems = getBookItemsUsedInBorrowRequests(fetchedBorrows, fetchedItems);
 
-    borrowRequests = [
-      BorrowRequest(id: 'br001', userId: widget.userId, bookCopyId: 'copy000', status: 'pending', requestDate: DateTime(2024, 4, 1), dueDate: DateTime(2024, 4, 10), bookId: 'b000'),
-      BorrowRequest(id: 'br002', userId: widget.userId, bookCopyId: 'copy001', status: 'approved', requestDate: DateTime(2024, 3, 1), dueDate: DateTime(2024, 3, 15), bookId: 'b001'),
-      BorrowRequest(id: 'br003', userId: widget.userId, bookCopyId: 'copy002', status: 'approved', requestDate: DateTime(2024, 2, 1), dueDate: DateTime(2024, 2, 15), bookId: 'b002'),
-      BorrowRequest(id: 'br004', userId: widget.userId, bookCopyId: 'copy003', status: 'rejected', requestDate: DateTime(2024, 1, 1), dueDate: DateTime(2024, 1, 10), bookId: 'b003'),
-      BorrowRequest(id: 'br005', userId: widget.userId, bookCopyId: 'copy004', status: 'approved', requestDate: DateTime(2024, 4, 5), dueDate: DateTime(2024, 4, 12), bookId: 'b000'),
-    ];
-
-    returnRequests = [
-      ReturnRequest(id: 'rr003', borrowRequestId: 'br003', returnDate: DateTime(2024, 2, 20), status: 'completed', returnImage: ''),
-      ReturnRequest(id: 'rr005', borrowRequestId: 'br005', returnDate: DateTime(2024, 4, 11), status: 'completed', returnImage: 'damaged.jpg'),
-      ReturnRequest(id: 'rr002', borrowRequestId: 'br002', returnDate: DateTime(2024, 3, 10), status: 'processing', returnImage: ''),
-    ];
+    setState(() {
+      books = fetchedBooks;
+      borrowRequests = fetchedBorrows;
+      returnRequests = fetchedReturns;
+      bookItems = usedItems;
+    });
   }
+
+  Future<List<BookItem>> fetchBookItems() async {
+    final res = await http.get(Uri.parse('http://localhost:3003/api/bookcopies'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<BookItem>.from(data.map((e) => BookItem.fromJson(e)));
+    } else {
+      throw Exception('Failed to load book items');
+    }
+  }
+
+  Future<List<Book>> fetchBooks() async {
+    final res = await http.get(Uri.parse('http://localhost:3003/api/books'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<Book>.from(data.map((e) => Book.fromJson(e)));
+    } else {
+      throw Exception('Failed to load books');
+    }
+  }
+
+  Future<List<BorrowRequest>> fetchBorrowRequests(String userId) async {
+    final res = await http.get(Uri.parse('http://localhost:3002/api/borrowRequest/user/$userId'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<BorrowRequest>.from(data.map((e) => BorrowRequest.fromJson(e)));
+    } else {
+      throw Exception('Failed to load borrow requests');
+    }
+  }
+
+  Future<List<ReturnRequest>> fetchReturnRequests(String userId) async {
+    final res = await http.get(Uri.parse('http://localhost:3002/api/returnRequest/user/$userId'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<ReturnRequest>.from(data.map((e) => ReturnRequest.fromJson(e)));
+    } else {
+      throw Exception('Failed to load return requests');
+    }
+  }
+
+  List<BookItem> getBookItemsUsedInBorrowRequests(
+      List<BorrowRequest> requests,
+      List<BookItem> items,
+      ) {
+    final ids = requests.map((r) => int.tryParse(r.bookCopyId)).whereType<int>().toSet();
+    return items.where((item) => ids.contains(item.id)).toList();
+  }
+
 
   String getCombinedStatus(BorrowRequest r, ReturnRequest? ret) {
     if (r.status == 'pending') return 'Chờ duyệt';
@@ -82,7 +112,9 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
 
   BookItem? getCopy(String copyId) {
     try {
-      return bookItems.firstWhere((b) => b.id == copyId);
+      final id = int.tryParse(copyId);
+      if (id == null) return null;
+      return bookItems.firstWhere((b) => b.id == id);
     } catch (_) {
       return null;
     }

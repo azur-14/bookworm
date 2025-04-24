@@ -12,4 +12,14 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Lấy tất cả RoomBookingRequest của người dùng
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const requests = await RoomBookingRequest.find({ user_id: req.params.userId });
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch booking requests' });
+  }
+});
+
 module.exports = router;

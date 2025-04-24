@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:bookworm/model/Room.dart';
 import 'package:bookworm/model/RoomBookingRequest.dart';
 import 'package:bookworm/theme/AppColor.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class RoomBookingHistoryPage extends StatefulWidget {
   final String userId;
@@ -19,58 +21,41 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
   @override
   void initState() {
     super.initState();
-    _loadFakeData();
+    _loadData();
   }
 
-  void _loadFakeData() {
-    rooms = [
-      Room(id: 'r01', name: 'Phòng 101', floor: 'Tầng 1', capacity: 10, fee: 50000),
-      Room(id: 'r02', name: 'Phòng 202', floor: 'Tầng 2', capacity: 15, fee: 60000),
-      Room(id: 'r03', name: 'Phòng 303', floor: 'Tầng 3', capacity: 20, fee: 70000),
-    ];
+  Future<void> _loadData() async {
+    try {
+      final fetchedRooms = await fetchRooms();
+      final fetchedBookings = await fetchRoomBookings(widget.userId);
+      setState(() {
+        rooms = fetchedRooms;
+        bookings = fetchedBookings;
+      });
+      print(bookings);
+    } catch (e) {
+      debugPrint('Lỗi khi tải dữ liệu phòng: $e');
+    }
+  }
 
-    bookings = [
-      RoomBookingRequest(
-        id: 'b01',
-        userId: widget.userId,
-        roomId: 'r01',
-        startTime: DateTime.now().add(const Duration(days: 1)),
-        endTime: DateTime.now().add(const Duration(days: 1, hours: 2)),
-        status: 'pending',
-        purpose: 'Thảo luận nhóm',
-        requestTime: DateTime.now().subtract(const Duration(days: 1)),
-      ),
-      RoomBookingRequest(
-        id: 'b02',
-        userId: widget.userId,
-        roomId: 'r02',
-        startTime: DateTime.now().add(const Duration(days: 2)),
-        endTime: DateTime.now().add(const Duration(days: 2, hours: 3)),
-        status: 'approved',
-        purpose: 'Học nhóm ôn thi',
-        requestTime: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-      RoomBookingRequest(
-        id: 'b03',
-        userId: widget.userId,
-        roomId: 'r03',
-        startTime: DateTime.now().add(const Duration(days: 3)),
-        endTime: DateTime.now().add(const Duration(days: 3, hours: 1)),
-        status: 'rejected',
-        purpose: 'Offline lớp',
-        requestTime: DateTime.now().subtract(const Duration(days: 3)),
-      ),
-      RoomBookingRequest(
-        id: 'b04',
-        userId: widget.userId,
-        roomId: 'r01',
-        startTime: DateTime.now().add(const Duration(days: 4)),
-        endTime: DateTime.now().add(const Duration(days: 4, hours: 1)),
-        status: 'cancelled',
-        purpose: 'Đổi ý, bận lịch khác',
-        requestTime: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-    ];
+  Future<List<Room>> fetchRooms() async {
+    final res = await http.get(Uri.parse('http://localhost:3001/api/rooms'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<Room>.from(data.map((r) => Room.fromJson(r)));
+    } else {
+      throw Exception('Failed to load rooms');
+    }
+  }
+
+  Future<List<RoomBookingRequest>> fetchRoomBookings(String userId) async {
+    final res = await http.get(Uri.parse('http://localhost:3002/api/roomBookingRequest/user/$userId'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<RoomBookingRequest>.from(data.map((r) => RoomBookingRequest.fromJson(r)));
+    } else {
+      throw Exception('Failed to load booking requests');
+    }
   }
 
   Room? getRoom(String id) {

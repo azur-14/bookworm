@@ -30,8 +30,8 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
     if (_cache.containsKey(widget.book.id)) return _cache[widget.book.id]!;
     await Future.delayed(const Duration(milliseconds: 300));
     final items = [
-      BookItem(id: '1', bookId: widget.book.id, shelfId: null, status: 'available', damageImage: null, timeCreate: DateTime.now().subtract(const Duration(days: 10))),
-      BookItem(id: '2', bookId: widget.book.id, shelfId: null, status: 'borrowed', damageImage: null, timeCreate: DateTime.now().subtract(const Duration(days: 5))),
+      BookItem(id: 1, bookId: widget.book.id, shelfId: null, status: 'available', damageImage: null, timeCreate: DateTime.now().subtract(const Duration(days: 10))),
+      BookItem(id: 2, bookId: widget.book.id, shelfId: null, status: 'borrowed', damageImage: null, timeCreate: DateTime.now().subtract(const Duration(days: 5))),
     ];
     _cache[widget.book.id] = items;
     return items;
@@ -105,7 +105,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                             if (_isAllSelected(items)) {
                               _selectedItemIds.clear();
                             } else {
-                              _selectedItemIds.addAll(unassigned.map((e) => e.id));
+                              _selectedItemIds.addAll(unassigned.map((e) => e.id.toString()));
                             }
                           });
                         },
@@ -163,7 +163,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                         return MouseRegion(
                           onEnter: (_) {
                             if (_dragSelecting && item.shelfId == null) {
-                              setState(() => _selectedItemIds.add(item.id));
+                              setState(() => _selectedItemIds.add(item.id.toString()));
                             }
                           },
                           child: Container(
@@ -186,7 +186,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                                     onChanged: (checked) {
                                       setState(() {
                                         checked == true
-                                            ? _selectedItemIds.add(item.id)
+                                            ? _selectedItemIds.add(item.id.toString())
                                             : _selectedItemIds.remove(item.id);
                                       });
                                     },

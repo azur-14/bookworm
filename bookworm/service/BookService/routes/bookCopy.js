@@ -39,4 +39,27 @@ router.put('/borrow/:bookId', async (req, res) => {
     }
 });
 
+// lấy danh sách tất cả BookItem
+router.get('/', async (req, res) => {
+  try {
+    const items = await BookCopy.find();
+    res.json(items);
+  } catch (err) {
+    console.error('❌ Error fetching BookItems:', err);
+    res.status(500).json({ error: 'Failed to fetch book items' });
+  }
+});
+
+// lấy BookItem theo id
+router.get('/:id', async (req, res) => {
+  try {
+    const item = await BookCopy.findOne({ id: req.params.id });
+    if (!item) return res.status(404).json({ error: 'BookItem not found' });
+    res.json(item);
+  } catch (err) {
+    console.error('❌ Error fetching BookItem by ID:', err);
+    res.status(500).json({ error: 'Failed to fetch book item' });
+  }
+});
+
 module.exports = router;

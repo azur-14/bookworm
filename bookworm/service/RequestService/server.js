@@ -6,6 +6,7 @@ const cors = require('cors');
 
 const roomBookingRequestRoutes = require('./routes/roomBookingRequest');
 const borrowRequestRoutes = require('./routes/borrowRequest');
+const returnRequestRoutes = require('./routes/returnRequest');
 
 const app = express();
 const PORT = process.env.PORT;
@@ -20,6 +21,7 @@ connectDB();
 // Routes
 app.use('/api/roomBookingRequest', roomBookingRequestRoutes);
 app.use('/api/borrowRequest', borrowRequestRoutes);
+app.use('/api/returnRequest', returnRequestRoutes);
 
 // Khởi chạy server
 app.listen(PORT, () => {

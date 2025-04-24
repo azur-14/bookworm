@@ -4,7 +4,7 @@ const router = express.Router();
 const BorrowRequest = require('../models/BorrowRequest');
 const { v4: uuidv4 } = require('uuid');
 
-// POST /api/borrow
+// gửi yêu cầu mượn sách
 router.post('/', async (req, res) => {
   try {
     const { user_id, book_id, due_date } = req.body;
@@ -57,6 +57,16 @@ router.get('/check/:userId/:bookId', async (req, res) => {
     res.json({ alreadyBorrowed: !!existing });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// lấy tất cả yêu cầu mượn sách cảu ng dùng hiện tại
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const requests = await BorrowRequest.find({ user_id: req.params.userId }).sort({ request_date: -1 });
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch borrow requests' });
   }
 });
 

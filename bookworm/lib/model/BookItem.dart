@@ -1,6 +1,6 @@
 // model/BookItem.dart
 class BookItem {
-  final String id;
+  final int id;
   String bookId;
   int? shelfId;
   String status;       // available, borrowed, damaged, lost
@@ -18,7 +18,7 @@ class BookItem {
 
   factory BookItem.fromJson(Map<String, dynamic> json) {
     return BookItem(
-      id: json['id'] as String,
+      id: (json['id'] as num).toInt(),
       bookId: json['book_id'] as String,
       shelfId: (json['shelf_id'] as num?)?.toInt(),
       status: json['status'] as String? ?? 'available',
