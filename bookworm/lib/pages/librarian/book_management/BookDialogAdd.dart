@@ -1,10 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:bookworm/model/Book.dart';
 import 'package:bookworm/model/Category.dart';
-import 'package:http/http.dart' as http;
-
 
 class BookDialogAdd extends StatefulWidget {
   final List<Category> categories;
@@ -21,9 +21,12 @@ class _BookDialogAddState extends State<BookDialogAdd> {
   final pubCtl = TextEditingController();
   final yearCtl = TextEditingController();
   final descCtl = TextEditingController();
-  final imgCtl = TextEditingController();
+  final priceCtl = TextEditingController();
   final qtyCtl = TextEditingController(text: '1');
   Category? selCat;
+
+  XFile? pickedImage;
+  Uint8List? imageBytes;
 
   @override
   void initState() {
@@ -42,7 +45,8 @@ class _BookDialogAddState extends State<BookDialogAdd> {
           _input(pubCtl, 'Publisher'),
           _input(yearCtl, 'Publish Year', number: true),
           _input(descCtl, 'Description'),
-          _input(imgCtl, 'Image URL'),
+          _pickImageButton(),
+          _input(priceCtl, 'Price', number: true),
           _input(qtyCtl, 'Total Quantity', number: true),
           const SizedBox(height: 12),
           DropdownButtonFormField<Category>(
@@ -82,32 +86,92 @@ class _BookDialogAddState extends State<BookDialogAdd> {
     );
   }
 
+  Widget _pickImageButton() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ElevatedButton.icon(
+            icon: const Icon(Icons.image),
+            label: const Text('Choose Image'),
+            onPressed: _pickImage,
+          ),
+          const SizedBox(height: 8),
+          if (imageBytes != null)
+            Image.memory(imageBytes!, width: 100, height: 100, fit: BoxFit.cover),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        pickedImage = picked;
+        imageBytes = bytes;
+      });
+    }
+  }
+
   Future<void> _handleAddBook() async {
     try {
+      // Validate dữ liệu
+      if (titleCtl.text.trim().isEmpty ||
+          authorCtl.text.trim().isEmpty ||
+          pubCtl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vui lòng nhập đủ Title, Author và Publisher')),
+        );
+        return;
+      }
+
+      final year = int.tryParse(yearCtl.text);
+      if (year == null || year < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Năm xuất bản phải là số hợp lệ')),
+        );
+        return;
+      }
+
+      final price = double.tryParse(priceCtl.text);
+      if (price == null || price < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Giá sách phải là số hợp lệ')),
+        );
+        return;
+      }
+
       final totalQty = int.tryParse(qtyCtl.text) ?? 1;
+
       final newBook = Book(
         id: '',
-        title: titleCtl.text,
-        author: authorCtl.text,
-        publisher: pubCtl.text,
-        publishYear: int.tryParse(yearCtl.text) ?? 0,
+        title: titleCtl.text.trim(),
+        author: authorCtl.text.trim(),
+        publisher: pubCtl.text.trim(),
+        publishYear: year,
+        price: price,
         categoryId: selCat?.id ?? '',
         totalQuantity: totalQty,
         availableQuantity: totalQty,
-        image: imgCtl.text,
-        description: descCtl.text,
+        image: imageBytes != null ? base64Encode(imageBytes!) : '',
+        description: descCtl.text.trim(),
         timeCreate: DateTime.now(),
       );
+
       await addBookToServer(newBook);
       Navigator.pop(context, true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text('Lỗi: $e')),
       );
     }
   }
 
-  // ------------------ API đặt tại đây ------------------
+
   Future<void> addBookToServer(Book b) async {
     final resp = await http.post(
       Uri.parse('http://localhost:3003/api/books'),

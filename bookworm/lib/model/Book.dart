@@ -1,13 +1,14 @@
 class Book {
   final String id;
-  String image;              // URL hoặc base64 string
+  String image;
   String title;
   String author;
   String publisher;
   int publishYear;
+  double price;             // ⭐ THÊM dòng này
   String categoryId;
-  int totalQuantity;         // total_quantity trên server
-  int availableQuantity;     // available_quantity trên server
+  int totalQuantity;
+  int availableQuantity;
   String? description;
   DateTime timeCreate;
 
@@ -18,6 +19,7 @@ class Book {
     required this.author,
     required this.publisher,
     required this.publishYear,
+    required this.price,           // ⭐ THÊM required price
     required this.categoryId,
     required this.totalQuantity,
     required this.availableQuantity,
@@ -33,6 +35,7 @@ class Book {
       author: json['author'] as String? ?? '',
       publisher: json['publisher'] as String? ?? '',
       publishYear: (json['publish_year'] as num?)?.toInt() ?? 0,
+      price: (json['price'] as num?)?.toDouble() ?? 0.0, // ⭐ THÊM dòng này
       categoryId: json['category_id'] as String? ?? '',
       totalQuantity: (json['total_quantity'] as num?)?.toInt() ?? 0,
       availableQuantity: (json['available_quantity'] as num?)?.toInt() ?? 0,
@@ -49,6 +52,7 @@ class Book {
       'author': author,
       'publisher': publisher,
       'publish_year': publishYear,
+      'price': price,                        // ⭐ THÊM dòng này
       'category_id': categoryId,
       'total_quantity': totalQuantity,
       'available_quantity': availableQuantity,

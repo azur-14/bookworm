@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
 import 'package:bookworm/model/Book.dart';
 import 'package:bookworm/model/BookItem.dart';
 import 'package:bookworm/model/Shelf.dart';
@@ -71,24 +72,15 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
             FutureBuilder<List<BookItem>>(
               future: fetchItems(),
               builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    debugPrint('❌ Snapshot error: ${snapshot.error}');
-                    return Text('Lỗi: ${snapshot.error}');
-                  }
+                if (snapshot.hasError) {
+                  return Text('Error: ${snapshot.error}');
+                }
 
-                  if (!snapshot.hasData) {
-                    debugPrint('⏳ Đang tải dữ liệu BookItem...');
-                    return const CircularProgressIndicator();
-                  }
+                if (!snapshot.hasData) {
+                  return const CircularProgressIndicator();
+                }
 
-                  final items = snapshot.data!;
-                  debugPrint('✅ Đã nhận ${items.length} BookItem');
-                  for (var i = 0; i < items.length; i++) {
-                    final item = items[i];
-                    debugPrint('🔹 Item[$i] => id: ${item.id}, shelfId: ${item.shelfId}, status: ${item.status}, created: ${item.timeCreate}');
-                  }
-                if (!snapshot.hasData) return const CircularProgressIndicator();
-
+                final items = snapshot.data!;
                 final availableShelves = _shelves.where((s) => s.currentCount < s.capacityLimit).toList();
 
                 return Column(children: [
@@ -133,7 +125,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                           int count = 0;
                           for (var id in _selectedItemIds) {
                             if (shelf.currentCount >= shelf.capacityLimit) break;
-                            final item = items.firstWhere((i) => i.id == id);
+                            final item = items.firstWhere((i) => i.id.toString() == id);
                             if (item.shelfId == null) {
                               item.shelfId = shelf.id;
                               await updateBookItemOnServer(item);
@@ -158,7 +150,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                       itemCount: items.length,
                       itemBuilder: (ctx, index) {
                         final item = items[index];
-                        final isSelected = _selectedItemIds.contains(item.id);
+                        final isSelected = _selectedItemIds.contains(item.id.toString());
 
                         return MouseRegion(
                           onEnter: (_) {
@@ -187,7 +179,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                                       setState(() {
                                         checked == true
                                             ? _selectedItemIds.add(item.id.toString())
-                                            : _selectedItemIds.remove(item.id);
+                                            : _selectedItemIds.remove(item.id.toString());
                                       });
                                     },
                                     activeColor: AppColors.primary,
@@ -227,10 +219,18 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
 
   Widget _bookImage(Book book) {
     if (book.image.isEmpty) return const SizedBox.shrink();
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.network(book.image, height: 140, width: 100, fit: BoxFit.cover),
-    );
+    try {
+      final bytes = base64Decode(book.image);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.memory(bytes, height: 140, width: 100, fit: BoxFit.cover),
+      );
+    } catch (_) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(book.image, height: 140, width: 100, fit: BoxFit.cover),
+      );
+    }
   }
 
   Widget _bookDetailSection(Book book) {
@@ -240,6 +240,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
         _infoRow('Author', book.author),
         _infoRow('Publisher', book.publisher),
         _infoRow('Year', book.publishYear.toString()),
+        _infoRow('Price', '${book.price.toStringAsFixed(2)} VNĐ'),
         _infoRow('Quantity', '${book.availableQuantity}/${book.totalQuantity}'),
         if (book.description?.isNotEmpty ?? false)
           _infoRow('Description', book.description!),
@@ -250,12 +251,16 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
   Widget _infoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 90, child: Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold))),
-        Expanded(child: Text(value)),
-      ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 90, child: Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(child: Text(value)),
+        ],
+      ),
     );
   }
+
 
   Future<void> updateBookItemOnServer(BookItem item) async {
     await Future.delayed(const Duration(milliseconds: 200)); // giả lập API

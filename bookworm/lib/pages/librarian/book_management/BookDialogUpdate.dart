@@ -1,6 +1,7 @@
 import 'dart:convert';
-
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:bookworm/model/Book.dart';
 import 'package:bookworm/model/Category.dart';
 import 'package:http/http.dart' as http;
@@ -25,10 +26,12 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
   late TextEditingController pubCtl;
   late TextEditingController yearCtl;
   late TextEditingController descCtl;
-  late TextEditingController imgCtl;
+  late TextEditingController priceCtl;
 
   late int newTotal;
   late int newAvail;
+
+  Uint8List? imageBytes;
 
   @override
   void initState() {
@@ -38,10 +41,16 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
     pubCtl = TextEditingController(text: widget.book.publisher);
     yearCtl = TextEditingController(text: widget.book.publishYear.toString());
     descCtl = TextEditingController(text: widget.book.description ?? '');
-    imgCtl = TextEditingController(text: widget.book.image);
+    priceCtl = TextEditingController(text: widget.book.price.toString());
 
     newTotal = widget.book.totalQuantity;
     newAvail = widget.book.availableQuantity;
+
+    if (widget.book.image.isNotEmpty) {
+      try {
+        imageBytes = base64Decode(widget.book.image);
+      } catch (_) {}
+    }
   }
 
   @override
@@ -56,34 +65,19 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
             _input(authorCtl, 'Author'),
             _input(pubCtl, 'Publisher'),
             _input(yearCtl, 'Publish Year', number: true),
+            _input(priceCtl, 'Price', number: true),
             _dropdownCategory(),
             _quantityEditor('Total Quantity', true),
             _quantityEditor('Available Quantity', false),
             _input(descCtl, 'Description'),
-            _input(imgCtl, 'Image URL'),
+            _pickImageButton(),
           ],
         ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
         ElevatedButton(
-          onPressed: () async {
-            final updated = Book(
-              id: widget.book.id,
-              image: imgCtl.text,
-              title: titleCtl.text,
-              author: authorCtl.text,
-              publisher: pubCtl.text,
-              publishYear: int.tryParse(yearCtl.text) ?? widget.book.publishYear,
-              categoryId: widget.book.categoryId,
-              totalQuantity: newTotal,
-              availableQuantity: newAvail,
-              description: descCtl.text,
-              timeCreate: widget.book.timeCreate,
-            );
-            await updateBookOnServer(updated);
-            Navigator.pop(context, true);
-          },
+          onPressed: _handleUpdateBook,
           child: const Text('UPDATE'),
         ),
       ],
@@ -143,6 +137,89 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
       ),
     );
   }
+
+  Widget _pickImageButton() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ElevatedButton.icon(
+            icon: const Icon(Icons.image),
+            label: const Text('Choose Image'),
+            onPressed: _pickImage,
+          ),
+          const SizedBox(height: 8),
+          if (imageBytes != null)
+            Image.memory(imageBytes!, width: 100, height: 100, fit: BoxFit.cover),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        imageBytes = bytes;
+      });
+    }
+  }
+
+  Future<void> _handleUpdateBook() async {
+    try {
+      // Validate dữ liệu
+      if (titleCtl.text.trim().isEmpty ||
+          authorCtl.text.trim().isEmpty ||
+          pubCtl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vui lòng nhập đủ Title, Author và Publisher')),
+        );
+        return;
+      }
+
+      final year = int.tryParse(yearCtl.text);
+      if (year == null || year < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Năm xuất bản phải là số hợp lệ')),
+        );
+        return;
+      }
+
+      final price = double.tryParse(priceCtl.text);
+      if (price == null || price < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Giá sách phải là số hợp lệ')),
+        );
+        return;
+      }
+
+      final updated = Book(
+        id: widget.book.id,
+        image: imageBytes != null ? base64Encode(imageBytes!) : widget.book.image,
+        title: titleCtl.text.trim(),
+        author: authorCtl.text.trim(),
+        publisher: pubCtl.text.trim(),
+        publishYear: year,
+        price: price,
+        categoryId: widget.book.categoryId,
+        totalQuantity: newTotal,
+        availableQuantity: newAvail,
+        description: descCtl.text.trim(),
+        timeCreate: widget.book.timeCreate,
+      );
+
+      await updateBookOnServer(updated);
+      Navigator.pop(context, true);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi: $e')),
+      );
+    }
+  }
+
   Future<void> updateBookOnServer(Book b) async {
     final resp = await http.put(
       Uri.parse('http://localhost:3003/api/books/${b.id}'),
@@ -153,5 +230,4 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
       throw Exception('Update book failed: ${resp.body}');
     }
   }
-
 }
