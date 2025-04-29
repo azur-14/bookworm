@@ -171,52 +171,58 @@ class _BookManagementPageState extends State<BookManagementPage> {
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columns: const [
-          DataColumn(label: Text('ID')),
-          DataColumn(label: Text('Title')),
-          DataColumn(label: Text('Author')),
-          DataColumn(label: Text('Publisher')),
-          DataColumn(label: Text('Year')),
-          DataColumn(label: Text('Category')),
-          DataColumn(label: Text('Total')),
-          DataColumn(label: Text('Available')),
-          DataColumn(label: Text('Actions')),
-        ],
-        rows: filteredBooks.map((book) {
-          return DataRow(cells: [
-            DataCell(Text(book.id)),
-            DataCell(Text(book.title)),
-            DataCell(Text(book.author)),
-            DataCell(Text(book.publisher)),
-            DataCell(Text(book.publishYear.toString())),
-            DataCell(Text(_catName(book.categoryId))),
-            DataCell(Text(book.totalQuantity.toString())),
-            DataCell(Text(book.availableQuantity.toString())),
-            DataCell(Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.visibility, color: Colors.blue),
-                  onPressed: () => _showViewBookDialog(book),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.orange),
-                  onPressed: () => _showUpdateBookDialog(book),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => _deleteBook(book),
-                ),
-              ],
-            )),
-          ]);
-        }).toList(),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 1000),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          child: DataTable(
+            columns: const [
+              DataColumn(label: Text('ID')),
+              DataColumn(label: Text('Title')),
+              DataColumn(label: Text('Author')),
+              DataColumn(label: Text('Publisher')),
+              DataColumn(label: Text('Year')),
+              DataColumn(label: Text('Category')),
+              DataColumn(label: Text('Total')),
+              DataColumn(label: Text('Available')),
+              DataColumn(label: Text('Actions')),
+            ],
+            rows: filteredBooks.map((book) {
+              return DataRow(cells: [
+                DataCell(Text(book.id)),
+                DataCell(Text(book.title)),
+                DataCell(Text(book.author)),
+                DataCell(Text(book.publisher)),
+                DataCell(Text(book.publishYear.toString())),
+                DataCell(Text(_catName(book.categoryId))),
+                DataCell(Text(book.totalQuantity.toString())),
+                DataCell(Text(book.availableQuantity.toString())),
+                DataCell(Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.visibility, color: Colors.blue),
+                      onPressed: () => _showViewBookDialog(book),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.orange),
+                      onPressed: () => _showUpdateBookDialog(book),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _deleteBook(book),
+                    ),
+                  ],
+                )),
+              ]);
+            }).toList(),
+          ),
+        ),
       ),
     );
   }
 
-  // ---------------- BOOK API (gộp vào luôn) ----------------
+  // ---------------- BOOK API ----------------
   Future<List<Category>> fetchCategories() async {
     final resp = await http.get(Uri.parse('http://localhost:3003/api/categories'));
     if (resp.statusCode == 200) {

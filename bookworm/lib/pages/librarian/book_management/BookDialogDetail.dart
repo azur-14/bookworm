@@ -1,6 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'dart:convert';
 import 'package:bookworm/model/Book.dart';
 import 'package:bookworm/model/BookItem.dart';
 import 'package:bookworm/model/Shelf.dart';
@@ -50,170 +50,192 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
   Widget build(BuildContext context) {
     final book = widget.book;
 
-    return AlertDialog(
-      title: Text('Book: ${book.title}'),
-      content: SizedBox(
-        width: 700,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _bookImage(book),
-              const SizedBox(width: 16),
-              Expanded(child: _bookDetailSection(book)),
-            ]),
-            const Divider(thickness: 1),
-            const SizedBox(height: 8),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Book Items', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-            const SizedBox(height: 8),
-            FutureBuilder<List<BookItem>>(
-              future: fetchItems(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Text('Error: ${snapshot.error}');
-                }
-
-                if (!snapshot.hasData) {
-                  return const CircularProgressIndicator();
-                }
-
-                final items = snapshot.data!;
-                final availableShelves = _shelves.where((s) => s.currentCount < s.capacityLimit).toList();
-
-                return Column(children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return AlertDialog(
+          title: Text('Book: ${book.title}'),
+          content: SizedBox(
+            width: 700,
+            height: constraints.maxHeight * 0.85,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.white,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            final unassigned = items.where((i) => i.shelfId == null);
-                            if (_isAllSelected(items)) {
-                              _selectedItemIds.clear();
-                            } else {
-                              _selectedItemIds.addAll(unassigned.map((e) => e.id.toString()));
-                            }
-                          });
-                        },
-                        child: Text(_isAllSelected(items) ? 'Bỏ chọn tất cả' : 'Chọn tất cả chưa gán'),
-                      ),
-                      const SizedBox(width: 12),
-                      DropdownButton<int>(
-                        hint: const Text('Chọn kệ'),
-                        value: _selectedShelfId,
-                        onChanged: (val) => setState(() => _selectedShelfId = val),
-                        items: availableShelves.map((s) {
-                          final left = s.capacityLimit - s.currentCount;
-                          return DropdownMenuItem(value: s.id, child: Text('${s.name} (còn $left)'));
-                        }).toList(),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.white,
-                        ),
-                        onPressed: (_selectedShelfId != null && _selectedItemIds.isNotEmpty)
-                            ? () async {
-                          final shelf = _shelves.firstWhere((s) => s.id == _selectedShelfId);
-                          int count = 0;
-                          for (var id in _selectedItemIds) {
-                            if (shelf.currentCount >= shelf.capacityLimit) break;
-                            final item = items.firstWhere((i) => i.id.toString() == id);
-                            if (item.shelfId == null) {
-                              item.shelfId = shelf.id;
-                              await updateBookItemOnServer(item);
-                              shelf.currentCount++;
-                              count++;
-                            }
-                          }
-                          setState(() => _selectedItemIds.clear());
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã gán $count bản sao vào ${shelf.name}')));
-                        }
-                            : null,
-                        child: const Text('GÁN ĐỒNG LOẠT'),
-                      )
+                      _bookImage(book),
+                      const SizedBox(width: 16),
+                      Expanded(child: _bookDetailSection(book)),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  GestureDetector(
-                    onPanStart: (_) => setState(() => _dragSelecting = true),
-                    onPanEnd: (_) => setState(() => _dragSelecting = false),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: items.length,
-                      itemBuilder: (ctx, index) {
-                        final item = items[index];
-                        final isSelected = _selectedItemIds.contains(item.id.toString());
+                  const Divider(thickness: 1),
+                  const SizedBox(height: 8),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Book Items', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                  const SizedBox(height: 8),
+                  FutureBuilder<List<BookItem>>(
+                    future: fetchItems(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Text('Error: ${snapshot.error}');
+                      }
 
-                        return MouseRegion(
-                          onEnter: (_) {
-                            if (_dragSelecting && item.shelfId == null) {
-                              setState(() => _selectedItemIds.add(item.id.toString()));
-                            }
-                          },
-                          child: Container(
-                            color: isSelected ? AppColors.primary.withOpacity(0.1) : null,
-                            child: ListTile(
-                              title: Text('ID: ${item.id}'),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Status: ${item.status}'),
-                                  Text('Shelf: ${item.shelfId != null ? getShelfName(item.shelfId) : "Chưa gán"}'),
-                                  Text('Created: ${DateFormat('yyyy-MM-dd').format(item.timeCreate)}'),
-                                ],
+                      final items = snapshot.data ?? [];
+
+                      if (items.isEmpty) {
+                        return const Center(child: Text('Không có bản sao nào.'));
+                      }
+
+                      final availableShelves = _shelves.where((s) => s.currentCount < s.capacityLimit).toList();
+
+                      return Column(
+                        children: [
+                          Row(
+                            children: [
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: AppColors.white,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    final unassigned = items.where((i) => i.shelfId == null);
+                                    if (_isAllSelected(items)) {
+                                      _selectedItemIds.clear();
+                                    } else {
+                                      _selectedItemIds.addAll(unassigned.map((e) => e.id.toString()));
+                                    }
+                                  });
+                                },
+                                child: Text(_isAllSelected(items) ? 'Bỏ chọn tất cả' : 'Chọn tất cả chưa gán'),
                               ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Checkbox(
-                                    value: isSelected,
-                                    onChanged: (checked) {
-                                      setState(() {
-                                        checked == true
-                                            ? _selectedItemIds.add(item.id.toString())
-                                            : _selectedItemIds.remove(item.id.toString());
-                                      });
-                                    },
-                                    activeColor: AppColors.primary,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, size: 20, color: AppColors.primary),
-                                    onPressed: () async {
-                                      await showDialog(
-                                        context: context,
-                                        builder: (_) => BookItemDialogUpdate(bookItem: item),
-                                      );
-                                      setState(() {});
-                                    },
-                                  ),
-                                ],
+                              const SizedBox(width: 12),
+                              DropdownButton<int>(
+                                hint: const Text('Chọn kệ'),
+                                value: _selectedShelfId,
+                                onChanged: (val) => setState(() => _selectedShelfId = val),
+                                items: availableShelves.map((s) {
+                                  final left = s.capacityLimit - s.currentCount;
+                                  return DropdownMenuItem(value: s.id, child: Text('${s.name} (còn $left)'));
+                                }).toList(),
                               ),
+                              const SizedBox(width: 12),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: AppColors.white,
+                                ),
+                                onPressed: (_selectedShelfId != null && _selectedItemIds.isNotEmpty)
+                                    ? () async {
+                                  final shelf = _shelves.firstWhere((s) => s.id == _selectedShelfId);
+                                  int count = 0;
+                                  for (var id in _selectedItemIds) {
+                                    if (shelf.currentCount >= shelf.capacityLimit) break;
+                                    final item = items.firstWhere((i) => i.id.toString() == id);
+                                    if (item.shelfId == null) {
+                                      item.shelfId = shelf.id;
+                                      await updateBookItemOnServer(item);
+                                      shelf.currentCount++;
+                                      count++;
+                                    }
+                                  }
+                                  setState(() => _selectedItemIds.clear());
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã gán $count bản sao vào ${shelf.name}')));
+                                }
+                                    : null,
+                                child: const Text('GÁN ĐỒNG LOẠT'),
+                              )
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 250,
+                            child: ListView.builder(
+                              itemCount: items.length,
+                              itemBuilder: (ctx, index) {
+                                final item = items[index];
+                                final isSelected = _selectedItemIds.contains(item.id.toString());
+
+                                return GestureDetector(
+                                  onPanStart: (_) => setState(() => _dragSelecting = true),
+                                  onPanEnd: (_) => setState(() => _dragSelecting = false),
+                                  child: MouseRegion(
+                                    onEnter: (_) {
+                                      if (_dragSelecting && item.shelfId == null && mounted) {
+                                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                                          if (mounted) {
+                                            setState(() => _selectedItemIds.add(item.id.toString()));
+                                          }
+                                        });
+                                      }
+                                    },
+                                    child: Container(
+                                      color: isSelected ? AppColors.primary.withOpacity(0.1) : null,
+                                      child: ListTile(
+                                        title: Text('ID: ${item.id}'),
+                                        subtitle: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text('Status: ${item.status}'),
+                                            Text('Shelf: ${item.shelfId != null ? getShelfName(item.shelfId) : "Chưa gán"}'),
+                                            Text('Created: ${DateFormat('yyyy-MM-dd').format(item.timeCreate)}'),
+                                          ],
+                                        ),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Checkbox(
+                                              value: isSelected,
+                                              onChanged: (checked) {
+                                                setState(() {
+                                                  checked == true
+                                                      ? _selectedItemIds.add(item.id.toString())
+                                                      : _selectedItemIds.remove(item.id.toString());
+                                                });
+                                              },
+                                              activeColor: AppColors.primary,
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.edit, size: 20, color: AppColors.primary),
+                                              onPressed: () async {
+                                                await showDialog(
+                                                  context: context,
+                                                  builder: (_) => BookItemDialogUpdate(bookItem: item),
+                                                );
+                                                setState(() {});
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
-                        );
-                      },
-                    ),
-                  )
-                ]);
-              },
-            )
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('ĐÓNG', style: TextStyle(color: AppColors.primary)),
+            ),
           ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('ĐÓNG', style: TextStyle(color: AppColors.primary)),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -260,7 +282,6 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
       ),
     );
   }
-
 
   Future<void> updateBookItemOnServer(BookItem item) async {
     await Future.delayed(const Duration(milliseconds: 200)); // giả lập API
