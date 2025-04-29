@@ -12,4 +12,15 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/available', async (req, res) => {
+  try {
+    const shelves = await Shelf.find({
+      $expr: { $gt: ["$capacityLimit", "$capacity"] } // đúng nghĩa: còn chỗ
+    });
+    res.json(shelves);
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi khi lấy danh sách kệ còn chỗ', error: err.message });
+  }
+});
+
 module.exports = router;

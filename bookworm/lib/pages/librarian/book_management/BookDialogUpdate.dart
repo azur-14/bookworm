@@ -220,14 +220,14 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
     }
   }
 
-  Future<void> updateBookOnServer(Book b) async {
+  Future<void> updateBookOnServer(Book book) async {
     final resp = await http.put(
-      Uri.parse('http://localhost:3003/api/books/${b.id}'),
+      Uri.parse('http://localhost:3003/api/books/${book.id}'),
       headers: {'Content-Type': 'application/json'},
-      body: json.encode(b.toJson()),
+      body: json.encode(book.toJson()),
     );
     if (resp.statusCode != 200) {
-      throw Exception('Update book failed: ${resp.body}');
+      throw Exception('Update failed: ${resp.body}');
     }
   }
 }

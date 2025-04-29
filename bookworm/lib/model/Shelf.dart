@@ -21,8 +21,8 @@ class Shelf {
       id: json['id'] as int,
       name: json['name'] as String,
       description: json['description'] as String?,
-      capacityLimit: (json['capacity_limit'] as num?)?.toInt() ?? 0,
-      currentCount: (json['current_count'] as num?)?.toInt() ?? 0,
+      capacityLimit: (json['capacityLimit'] as num?)?.toInt() ?? 0,
+      currentCount: (json['capacity'] as num?)?.toInt() ?? 0,
       timeCreate: DateTime.parse(json['timeCreate'] as String),
     );
   }

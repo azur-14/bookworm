@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
 const bookCopySchema = new mongoose.Schema({
-  id: { type: Number, unique: true },
+  id: { type: String, unique: true },
   book_id: { type: String, required: true },
-  shelf_id: { type: Number, required: true },
+  shelf_id: { type: Number, default: 0 },
   status: {
     type: String,
     enum: ['available', 'borrowed', 'damaged', 'lost'],
