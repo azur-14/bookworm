@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:bookworm/model/Shelf.dart';
 import 'package:bookworm/model/BookItem.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:intl/intl.dart';
 
 class BookItemDialogUpdate extends StatefulWidget {
   final BookItem bookItem;
@@ -12,10 +15,7 @@ class BookItemDialogUpdate extends StatefulWidget {
 }
 
 class _BookItemDialogUpdateState extends State<BookItemDialogUpdate> {
-  List<Shelf> shelves = [
-    Shelf(id: 1, name: 'Shelf A', description: '', capacityLimit: 100, currentCount: 10, timeCreate: DateTime.now()),
-    Shelf(id: 2, name: 'Shelf B', description: '', capacityLimit: 100, currentCount: 20, timeCreate: DateTime.now()),
-  ];
+  List<Shelf> _shelves = [];
 
   Shelf? selShelf;
   String status = 'available';
@@ -24,7 +24,7 @@ class _BookItemDialogUpdateState extends State<BookItemDialogUpdate> {
   @override
   void initState() {
     super.initState();
-    selShelf = shelves.firstWhere((s) => s.id == widget.bookItem.shelfId, orElse: () => shelves.first);
+    _loadShelves();
     status = widget.bookItem.status;
     damageUrl = widget.bookItem.damageImage;
   }
@@ -39,7 +39,7 @@ class _BookItemDialogUpdateState extends State<BookItemDialogUpdate> {
             DropdownButtonFormField<Shelf>(
               value: selShelf,
               decoration: const InputDecoration(labelText: 'Shelf', border: OutlineInputBorder()),
-              items: shelves.map((s) => DropdownMenuItem(value: s, child: Text(s.name))).toList(),
+              items: _shelves.map((s) => DropdownMenuItem(value: s, child: Text(s.name))).toList(),
               onChanged: (s) => setState(() => selShelf = s),
             ),
             const SizedBox(height: 12),
@@ -60,11 +60,70 @@ class _BookItemDialogUpdateState extends State<BookItemDialogUpdate> {
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
-        ElevatedButton(onPressed: () {
-          // Save mock, in real you'd call API
-          Navigator.pop(context);
-        }, child: const Text('SAVE')),
+        ElevatedButton(
+          onPressed: () async {
+            try {
+              await updateBookCopyOnServer(widget.bookItem, selShelf, status, damageUrl);
+              Navigator.pop(context, true); // trả về true để biết update thành công
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Lỗi cập nhật: $e')),
+              );
+            }
+          },
+          child: const Text('SAVE'),
+        ),
       ],
     );
   }
+
+  Future<List<Shelf>> fetchAvailableShelves() async {
+    final res = await http.get(Uri.parse('http://localhost:3003/api/shelves/available'));
+    if (res.statusCode == 200) {
+      final List data = json.decode(res.body);
+      return data.map((json) => Shelf.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load available shelves');
+    }
+  }
+
+  Future<void> _loadShelves() async {
+    try {
+      final shelves = await fetchAvailableShelves();
+      setState(() {
+        _shelves
+          ..clear()
+          ..addAll(shelves);
+
+        // Sau khi load xong _shelves mới set selected shelf
+        selShelf = _shelves.isNotEmpty
+            ? _shelves.firstWhere(
+              (s) => s.id == widget.bookItem.shelfId,
+          orElse: () => _shelves.first,
+        )
+            : null;
+      });
+    } catch (e) {
+      debugPrint('❌ Lỗi khi tải danh sách kệ: $e');
+    }
+  }
+
+  Future<void> updateBookCopyOnServer(BookItem item, Shelf? shelf, String status, String? damageImage) async {
+    final body = {
+      'shelf_id': shelf?.id,
+      'status': status,
+      'damage_image': damageImage,
+    };
+
+    final res = await http.put(
+      Uri.parse('http://localhost:3003/api/bookcopies/${item.id}'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(body),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('Update thất bại: ${res.body}');
+    }
+  }
 }
+

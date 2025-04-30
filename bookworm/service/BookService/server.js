@@ -12,6 +12,10 @@ const bookCopyRoutes = require('./routes/bookCopy');
 const app = express();
 const PORT = process.env.PORT;
 
+// --- thêm bodyParser giới hạn size ---
+app.use(express.json({ limit: '20mb' }));   // tăng giới hạn payload
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.json());

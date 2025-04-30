@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const BookCopy = require('../models/BookCopy');
+const Shelf = require('../models/Shelves');
 
 // đếm số lượng sách có sẵn
 router.get('/available-count/:bookId', async (req, res) => {
@@ -59,6 +61,81 @@ router.get('/:id', async (req, res) => {
   } catch (err) {
     console.error('❌ Error fetching BookItem by ID:', err);
     res.status(500).json({ error: 'Failed to fetch book item' });
+  }
+});
+
+// lấy danh sách bookCopy theo book_id
+router.get('/by-book/:bookId', async (req, res) => {
+  try {
+    const bookId = req.params.bookId;
+    const copies = await BookCopy.find({ book_id: bookId });
+    res.json(copies);
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi khi lấy danh sách bản sao', error: err.message });
+  }
+});
+
+// Gán đồng loạt shelf_id cho nhiều BookCopy
+router.put('/bulk-update-shelf', async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
+  try {
+    const { ids, shelf_id } = req.body;
+
+    if (!Array.isArray(ids) || typeof shelf_id !== 'number') {
+      return res.status(400).json({ message: 'Dữ liệu không hợp lệ' });
+    }
+
+    // Cập nhật bookcopies
+    const result = await BookCopy.updateMany(
+      { id: { $in: ids }, shelf_id: { $in: [null, 0] } }, // chỉ update những cái chưa gán
+      { $set: { shelf_id: shelf_id } },
+      { session }
+    );
+
+    const modifiedCount = result.modifiedCount || 0;
+
+    if (modifiedCount > 0) {
+      // Cập nhật capacity của Shelf (+ số lượng bản sao được gán)
+      await Shelf.updateOne(
+        { id: shelf_id },
+        { $inc: { capacity: modifiedCount } }, // cộng thêm modifiedCount
+        { session }
+      );
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({ message: `Đã cập nhật ${modifiedCount} bản sao và tăng capacity kệ`, modified: modifiedCount });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ message: 'Lỗi khi cập nhật bản sao', error: err.message });
+  }
+});
+
+// update bookCopy
+router.put('/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id); // id là số nguyên
+    const { shelf_id, status, damage_image } = req.body;
+
+    const updateFields = {};
+    if (shelf_id !== undefined) updateFields.shelf_id = shelf_id;
+    if (status !== undefined) updateFields.status = status;
+    if (damage_image !== undefined) updateFields.damage_image = damage_image;
+
+    const result = await BookCopy.updateOne({ id: id }, { $set: updateFields });
+
+    if (result.modifiedCount === 0) {
+      return res.status(404).json({ message: 'Không tìm thấy book copy hoặc không có thay đổi' });
+    }
+
+    res.json({ message: 'Cập nhật thành công', updated: result.modifiedCount });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi server', error: err.message });
   }
 });
 

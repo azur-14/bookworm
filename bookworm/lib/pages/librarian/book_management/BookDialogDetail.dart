@@ -6,6 +6,7 @@ import 'package:bookworm/model/BookItem.dart';
 import 'package:bookworm/model/Shelf.dart';
 import 'package:bookworm/theme/AppColor.dart';
 import 'BookItemDialogUpdate.dart';
+import 'package:http/http.dart' as http;
 
 class BookDialogDetail extends StatefulWidget {
   final Book book;
@@ -21,21 +22,12 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
   int? _selectedShelfId;
   bool _dragSelecting = false;
 
-  final List<Shelf> _shelves = [
-    Shelf(id: 1, name: 'Shelf A', description: '', capacityLimit: 5, currentCount: 2, timeCreate: DateTime.now()),
-    Shelf(id: 2, name: 'Shelf B', description: '', capacityLimit: 4, currentCount: 4, timeCreate: DateTime.now()),
-    Shelf(id: 3, name: 'Shelf C', description: '', capacityLimit: 6, currentCount: 3, timeCreate: DateTime.now()),
-  ];
+  final List<Shelf> _shelves = [];
 
-  Future<List<BookItem>> fetchItems() async {
-    if (_cache.containsKey(widget.book.id)) return _cache[widget.book.id]!;
-    await Future.delayed(const Duration(milliseconds: 300));
-    final items = [
-      BookItem(id: 1, bookId: widget.book.id, shelfId: null, status: 'available', damageImage: null, timeCreate: DateTime.now().subtract(const Duration(days: 10))),
-      BookItem(id: 2, bookId: widget.book.id, shelfId: null, status: 'borrowed', damageImage: null, timeCreate: DateTime.now().subtract(const Duration(days: 5))),
-    ];
-    _cache[widget.book.id] = items;
-    return items;
+  @override
+  void initState() {
+    super.initState();
+    _loadShelves();
   }
 
   String getShelfName(int? shelfId) {
@@ -44,7 +36,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
   }
 
   bool _isAllSelected(List<BookItem> items) =>
-      _selectedItemIds.length == items.where((i) => i.shelfId == null).length;
+      _selectedItemIds.length == items.where((i) => i.shelfId == 0).length;
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +69,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                   ),
                   const SizedBox(height: 8),
                   FutureBuilder<List<BookItem>>(
-                    future: fetchItems(),
+                    future: fetchBookCopiesByBookId(book.id),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState != ConnectionState.done) {
                         return const Center(child: CircularProgressIndicator());
@@ -105,7 +97,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                                 ),
                                 onPressed: () {
                                   setState(() {
-                                    final unassigned = items.where((i) => i.shelfId == null);
+                                    final unassigned = items.where((i) => i.shelfId == 0);
                                     if (_isAllSelected(items)) {
                                       _selectedItemIds.clear();
                                     } else {
@@ -133,20 +125,24 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                                 ),
                                 onPressed: (_selectedShelfId != null && _selectedItemIds.isNotEmpty)
                                     ? () async {
-                                  final shelf = _shelves.firstWhere((s) => s.id == _selectedShelfId);
-                                  int count = 0;
-                                  for (var id in _selectedItemIds) {
-                                    if (shelf.currentCount >= shelf.capacityLimit) break;
-                                    final item = items.firstWhere((i) => i.id.toString() == id);
-                                    if (item.shelfId == null) {
-                                      item.shelfId = shelf.id;
-                                      await updateBookItemOnServer(item);
-                                      shelf.currentCount++;
-                                      count++;
-                                    }
+                                  try {
+                                    final ids = _selectedItemIds.toList(); // giữ nguyên là List<String>
+                                    await updateShelfBulk(ids, _selectedShelfId!);
+
+                                    // Update lại local sau khi update thành công
+                                    final shelf = _shelves.firstWhere((s) => s.id == _selectedShelfId);
+                                    shelf.currentCount += ids.length;
+
+                                    setState(() => _selectedItemIds.clear());
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Đã gán ${ids.length} bản sao vào ${shelf.name}')),
+                                    );
+                                  } catch (e) {
+                                    debugPrint('❌ Error when bulk updating shelf: $e');
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Lỗi khi gán: $e')),
+                                    );
                                   }
-                                  setState(() => _selectedItemIds.clear());
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã gán $count bản sao vào ${shelf.name}')));
                                 }
                                     : null,
                                 child: const Text('GÁN ĐỒNG LOẠT'),
@@ -167,7 +163,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                                   onPanEnd: (_) => setState(() => _dragSelecting = false),
                                   child: MouseRegion(
                                     onEnter: (_) {
-                                      if (_dragSelecting && item.shelfId == null && mounted) {
+                                      if (_dragSelecting && item.shelfId == 0 && mounted) {
                                         WidgetsBinding.instance.addPostFrameCallback((_) {
                                           if (mounted) {
                                             setState(() => _selectedItemIds.add(item.id.toString()));
@@ -183,7 +179,7 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text('Status: ${item.status}'),
-                                            Text('Shelf: ${item.shelfId != null ? getShelfName(item.shelfId) : "Chưa gán"}'),
+                                            Text('Shelf: ${item.shelfId != 0 ? getShelfName(item.shelfId) : "Chưa gán"}'),
                                             Text('Created: ${DateFormat('yyyy-MM-dd').format(item.timeCreate)}'),
                                           ],
                                         ),
@@ -286,4 +282,58 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
   Future<void> updateBookItemOnServer(BookItem item) async {
     await Future.delayed(const Duration(milliseconds: 200)); // giả lập API
   }
+
+  Future<List<BookItem>> fetchBookCopiesByBookId(String bookId) async {
+    final res = await http.get(Uri.parse('http://localhost:3003/api/bookcopies/by-book/$bookId'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<BookItem>.from(data.map((e) => BookItem.fromJson(e)));
+    } else {
+      throw Exception('Failed to load book copies');
+    }
+  }
+
+  Future<List<Shelf>> fetchAvailableShelves() async {
+    final res = await http.get(Uri.parse('http://localhost:3003/api/shelves/available'));
+    if (res.statusCode == 200) {
+      final List data = json.decode(res.body);
+      return data.map((json) => Shelf.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load available shelves');
+    }
+  }
+
+  Future<void> _loadShelves() async {
+    try {
+      final shelves = await fetchAvailableShelves();
+      print(shelves.first.name);
+      setState(() {
+        _shelves
+          ..clear()
+          ..addAll(shelves);
+      });
+    } catch (e) {
+      debugPrint('❌ Lỗi khi tải danh sách kệ: $e');
+    }
+  }
+
+  Future<void> updateShelfBulk(List<String> ids, int shelfId) async {
+    final url = Uri.parse('http://localhost:3003/api/bookcopies/bulk-update-shelf');
+
+    final response = await http.put(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'ids': ids,
+        'shelf_id': shelfId,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Bulk update shelf failed: ${response.body}');
+    } else {
+      debugPrint('✅ Bulk update shelf success: ${response.body}');
+    }
+  }
+
 }
