@@ -12,6 +12,7 @@ import 'dart:typed_data';
 
 import 'package:bookworm/pages/Dashboard.dart';
 import 'package:bookworm/pages/librarian/book_management/BookManagement.dart';
+import 'package:bookworm/pages/admin/user_management/UserManagement.dart';
 import 'package:bookworm/pages/librarian/RoomManagement.dart';
 import 'package:bookworm/pages/librarian/user_management/UserManagement.dart';
 import 'package:bookworm/pages/usermanagement/Login.dart';
@@ -70,6 +71,7 @@ class _MainLayoutState extends State<MainLayout> {
           NavItem(title: 'Dashboard', icon: Icons.dashboard, page: const DashboardPage()),
           NavItem(title: 'Books', icon: Icons.menu_book, page: const BookManagementPage()),
           NavItem(title: 'Users', icon: Icons.people, page: const UserManagementPage()),
+          NavItem(title: 'Librarians', icon: Icons.people, page: const AdminManagementPage()),
           NavItem(title: 'Rooms', icon: Icons.store, page: const RoomManagementPage()),
         ];
       case 'librarian':
