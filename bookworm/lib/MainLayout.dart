@@ -2,7 +2,8 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:bookworm/pages/customer/BorrowHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingPage.dart';
-import 'package:bookworm/pages/librarian/user_management/RoomReservation.dart';
+import 'package:bookworm/pages/librarian/RoomReservation.dart';
+import 'package:bookworm/pages/librarian/book_management/BorrowReturnReviewPage.dart';
 import 'package:bookworm/theme/AppColor.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -79,6 +80,7 @@ class _MainLayoutState extends State<MainLayout> {
         return [
           NavItem(title: 'Dashboard', icon: Icons.dashboard, page: const DashboardPage()),
           NavItem(title: 'Users', icon: Icons.people, page: const UserManagementPage()),
+          NavItem(title: 'Books Borrow', icon: Icons.menu_book, page: BorrowReturnReviewPage()),
           NavItem(title: 'Books', icon: Icons.menu_book, page: const BookManagementPage()),
           NavItem(title: 'Rooms', icon: Icons.store, page: const RoomManagementPage()),
           NavItem(title: 'Room Reservation', icon: Icons.store, page: BookingReviewPage()),

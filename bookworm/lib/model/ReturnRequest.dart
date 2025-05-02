@@ -1,25 +1,30 @@
 class ReturnRequest {
   final String id;
   final String borrowRequestId;
+  String status;            // 'processing', 'completed', 'overdue'
   final DateTime returnDate;
-  final String status;        // 'processing', 'completed', 'overdue'
-  final String returnImage;   // URL hoặc base64
+  String? returnImageBase64;
+  String? condition;
 
   ReturnRequest({
     required this.id,
     required this.borrowRequestId,
-    required this.returnDate,
     this.status = 'processing',
-    this.returnImage = '',
-  });
+    DateTime? returnDate,
+    this.returnImageBase64,
+    this.condition,
+  }) : returnDate = returnDate ?? DateTime.now();
 
   factory ReturnRequest.fromJson(Map<String, dynamic> json) {
     return ReturnRequest(
       id: json['id'] as String,
       borrowRequestId: json['borrow_request_id'] as String,
-      returnDate: DateTime.parse(json['return_date'] as String),
       status: json['status'] as String? ?? 'processing',
-      returnImage: json['return_image'] as String? ?? '',
+      returnDate: json['return_date'] != null
+          ? DateTime.parse(json['return_date'] as String)
+          : null,
+      returnImageBase64: json['return_image_base64'] as String?,
+      condition: json['condition'] as String?,
     );
   }
 
@@ -27,9 +32,10 @@ class ReturnRequest {
     return {
       'id': id,
       'borrow_request_id': borrowRequestId,
-      'return_date': returnDate.toIso8601String(),
       'status': status,
-      'return_image': returnImage,
+      'return_date': returnDate.toIso8601String(),
+      'return_image_base64': returnImageBase64,
+      'condition': condition,
     };
   }
 }
