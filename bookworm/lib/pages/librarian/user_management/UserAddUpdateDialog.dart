@@ -6,6 +6,7 @@ import 'package:bookworm/model/User.dart';
 import 'UserTextField.dart';
 import 'UserPasswordField.dart';
 import 'package:http/http.dart' as http;
+import 'package:bookworm/theme/AppColor.dart'; // 👈 Thêm dòng này
 
 class UserAddUpdateDialog extends StatefulWidget {
   final User? user; // null -> Add, not null -> Update
@@ -112,7 +113,7 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Error', style: TextStyle(color: Colors.red)),
+        title: const Text('Error', style: TextStyle(color: Colors.red)), // optional: define AppColors.error
         content: Text(message),
         actions: [
           TextButton(
@@ -133,17 +134,17 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       title: Row(
         children: [
-          Icon(isUpdate ? Icons.edit : Icons.person_add, color: Colors.brown),
+          const Icon(Icons.person_add, color: AppColors.primary),
           const SizedBox(width: 8),
           Text(
             isUpdate ? 'Update User' : 'Add User',
-            style: TextStyle(color: Colors.brown[700], fontWeight: FontWeight.bold),
+            style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
           ),
         ],
       ),
       content: SingleChildScrollView(
         child: Column(
-          mainAxisSize: MainAxisSize.min, // ✅ fix lỗi thiếu mainAxisSize
+          mainAxisSize: MainAxisSize.min,
           children: [
             UserTextField(controller: _nameCtl, label: 'Name'),
             const SizedBox(height: 12),
@@ -182,7 +183,10 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
                   onPressed: _pickAvatar,
                   icon: const Icon(Icons.photo),
                   label: const Text('Choose Avatar'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.brown[700]),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 if (_base64Avatar != null)
@@ -205,10 +209,17 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('CANCEL'),
+          child: const Text(
+            'CANCEL',
+            style: TextStyle(color: AppColors.primary),
+          ),
+
         ),
         ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.brown[700]),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.white,
+          ),
           onPressed: _submit,
           child: Text(isUpdate ? 'UPDATE' : 'ADD'),
         ),
