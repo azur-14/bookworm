@@ -60,7 +60,7 @@ router.get('/check/:userId/:bookId', async (req, res) => {
   }
 });
 
-// lấy tất cả yêu cầu mượn sách cảu ng dùng hiện tại
+// lấy tất cả yêu cầu mượn sách của ng dùng hiện tại
 router.get('/user/:userId', async (req, res) => {
   try {
     const requests = await BorrowRequest.find({ user_id: req.params.userId }).sort({ request_date: -1 });
@@ -69,6 +69,5 @@ router.get('/user/:userId', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch borrow requests' });
   }
 });
-
 
 module.exports = router;

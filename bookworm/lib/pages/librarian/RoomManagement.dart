@@ -73,7 +73,12 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
   }
 
   Future<void> _showViewRoomDialog(Room room) async {
-    List<RoomBookingRequest> requests = _roomBookingRequests[room.id] ?? [];
+    List<RoomBookingRequest> requests = List.from(_roomBookingRequests[room.id] ?? []);
+    requests.sort((a, b) {
+      if (a.status == 'pending' && b.status != 'pending') return -1;
+      if (a.status != 'pending' && b.status == 'pending') return 1;
+      return 0;
+    });
     await showDialog(
       context: context,
       builder: (context) {
@@ -140,20 +145,36 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
                                   children: [
                                     IconButton(
                                       icon: const Icon(Icons.check, color: Colors.green),
-                                      onPressed: () {
-                                        setStateDialog(() {
-                                          request.status = 'approved';
-                                        });
-                                        setState(() {});
+                                      onPressed: () async {
+                                        try {
+                                          await updateBookingStatus(request.id, 'approved');
+                                          setStateDialog(() => request.status = 'approved');
+                                          setState(() {});
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Đã duyệt yêu cầu ${request.id}')),
+                                          );
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Lỗi khi duyệt: $e')),
+                                          );
+                                        }
                                       },
                                     ),
                                     IconButton(
                                       icon: const Icon(Icons.close, color: Colors.red),
-                                      onPressed: () {
-                                        setStateDialog(() {
-                                          request.status = 'rejected';
-                                        });
-                                        setState(() {});
+                                      onPressed: () async {
+                                        try {
+                                          await updateBookingStatus(request.id, 'rejected');
+                                          setStateDialog(() => request.status = 'rejected');
+                                          setState(() {});
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Đã từ chối yêu cầu ${request.id}')),
+                                          );
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Lỗi khi từ chối: $e')),
+                                          );
+                                        }
                                       },
                                     ),
                                   ],
@@ -358,4 +379,18 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
       print('Lỗi khi tải booking requests: $e');
     }
   }
+
+  Future<void> updateBookingStatus(String bookingId, String newStatus) async {
+    final url = Uri.parse('http://localhost:3002/api/roomBookingRequest/$bookingId');
+    final res = await http.put(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'status': newStatus}),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('Không thể cập nhật trạng thái: ${res.body}');
+    }
+  }
+
 }
