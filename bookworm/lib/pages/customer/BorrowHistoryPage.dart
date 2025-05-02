@@ -88,10 +88,9 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
       List<BorrowRequest> requests,
       List<BookItem> items,
       ) {
-    final ids = requests.map((r) => int.tryParse(r.bookCopyId)).whereType<int>().toSet();
-    return items.where((item) => ids.contains(item.id)).toList();
+    final ids = requests.map((r) => r.bookCopyId).toSet(); // giữ nguyên string
+    return items.where((item) => ids.contains(item.id.toString())).toList();
   }
-
 
   String getCombinedStatus(BorrowRequest r, ReturnRequest? ret) {
     if (r.status == 'pending') return 'Chờ duyệt';
@@ -112,9 +111,7 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
 
   BookItem? getCopy(String copyId) {
     try {
-      final id = int.tryParse(copyId);
-      if (id == null) return null;
-      return bookItems.firstWhere((b) => b.id == id);
+      return bookItems.firstWhere((b) => b.id.toString() == copyId);
     } catch (_) {
       return null;
     }
@@ -218,9 +215,7 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
               child: SizedBox(
                 width: 50,
                 height: 70,
-                child: book.image.isNotEmpty
-                    ? Image.network(book.image, fit: BoxFit.cover)
-                    : Container(color: Colors.grey[300], child: const Icon(Icons.book)),
+                child: _bookImage(book)
               ),
             ),
             title: Text(book.title),
@@ -290,5 +285,21 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
         ),
       ),
     );
+  }
+
+  Widget _bookImage(Book book) {
+    if (book.image.isEmpty) return const SizedBox.shrink();
+    try {
+      final bytes = base64Decode(book.image);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.memory(bytes, height: 140, width: 100, fit: BoxFit.cover),
+      );
+    } catch (_) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(book.image, height: 140, width: 100, fit: BoxFit.cover),
+      );
+    }
   }
 }

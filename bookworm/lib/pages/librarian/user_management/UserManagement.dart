@@ -72,6 +72,16 @@ class _UserManagementPageState extends State<UserManagementPage> with SingleTick
     }
   }
 
+  Future<void> deleteUserFromServer(String id) async {
+    final res = await http.delete(
+      Uri.parse('http://localhost:3000/api/users/$id'),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('Failed to delete user: ${res.body}');
+    }
+  }
+
   void _addUser(User newUser) {
     setState(() {
       _users.add(newUser);
@@ -92,10 +102,20 @@ class _UserManagementPageState extends State<UserManagementPage> with SingleTick
       context: context,
       builder: (ctx) => UserDeleteDialog(
         user: user,
-        onConfirmDelete: () {
-          setState(() {
-            _users.removeWhere((u) => u.id == user.id);
-          });
+        onConfirmDelete: () async {
+          try {
+            await deleteUserFromServer(user.id);
+            setState(() {
+              _users.removeWhere((u) => u.id == user.id);
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Đã xoá người dùng')),
+            );
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Lỗi khi xoá người dùng: $e')),
+            );
+          }
         },
       ),
     );
