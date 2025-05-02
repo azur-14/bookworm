@@ -1,4 +1,5 @@
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:bookworm/pages/admin/ActivityLog.dart';
 import 'package:bookworm/pages/customer/BorrowHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingPage.dart';
@@ -71,6 +72,7 @@ class _MainLayoutState extends State<MainLayout> {
       case 'admin':
         return [
           NavItem(title: 'Dashboard', icon: Icons.dashboard, page: const DashboardPage()),
+          NavItem(title: 'Activity Log', icon: Icons.dashboard, page: const ActivityLogAdminPage()),
           NavItem(title: 'Books', icon: Icons.menu_book, page: const BookManagementPage()),
           NavItem(title: 'Users', icon: Icons.people, page: const UserManagementPage()),
           NavItem(title: 'Librarians', icon: Icons.people, page: const LibrarianManagementPage()),
