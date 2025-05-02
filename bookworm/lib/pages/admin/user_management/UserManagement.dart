@@ -13,14 +13,14 @@ import 'UserDeleteDialog.dart';
 import 'SearchBar.dart';
 // /pages/user_management/user_management_page.dart
 
-class AdminManagementPage extends StatefulWidget {
-  const AdminManagementPage({Key? key}) : super(key: key);
+class LibrarianManagementPage extends StatefulWidget {
+  const LibrarianManagementPage({Key? key}) : super(key: key);
 
   @override
-  _AdminManagementPageState createState() => _AdminManagementPageState();
+  _LibrarianManagementPageState createState() => _LibrarianManagementPageState();
 }
 
-class _AdminManagementPageState extends State<AdminManagementPage> with SingleTickerProviderStateMixin {
+class _LibrarianManagementPageState extends State<LibrarianManagementPage> with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
   late DateTime _currentTime;
   final List<User> _users = [];
@@ -154,7 +154,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> with SingleTi
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Admin Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const Text('Librarian Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -162,7 +162,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> with SingleTi
                     ElevatedButton.icon(
                       onPressed: _openAddUserDialog,
                       icon: const Icon(Icons.add),
-                      label: const Text('Add Admin'),
+                      label: const Text('Add Librarian'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.brown[700],
                         foregroundColor: const Color(0xFFFFF3EB),

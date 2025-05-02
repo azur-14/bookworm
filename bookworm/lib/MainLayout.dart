@@ -71,7 +71,7 @@ class _MainLayoutState extends State<MainLayout> {
           NavItem(title: 'Dashboard', icon: Icons.dashboard, page: const DashboardPage()),
           NavItem(title: 'Books', icon: Icons.menu_book, page: const BookManagementPage()),
           NavItem(title: 'Users', icon: Icons.people, page: const UserManagementPage()),
-          NavItem(title: 'Librarians', icon: Icons.people, page: const AdminManagementPage()),
+          NavItem(title: 'Librarians', icon: Icons.people, page: const LibrarianManagementPage()),
           NavItem(title: 'Rooms', icon: Icons.store, page: const RoomManagementPage()),
         ];
       case 'librarian':
