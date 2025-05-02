@@ -63,16 +63,16 @@ class _BookItemDialogUpdateState extends State<BookItemDialogUpdate> {
         ElevatedButton(
           onPressed: () async {
             try {
-              await updateBookCopyOnServer(widget.bookItem, selShelf, status, damageUrl);
-              Navigator.pop(context, true); // trả về true để biết update thành công
+              await updateBookItem(widget.bookItem.id, selShelf?.id, status, damageUrl);
+              Navigator.pop(context, true); // thông báo thành công
             } catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Lỗi cập nhật: $e')),
+                SnackBar(content: Text('Cập nhật thất bại: $e')),
               );
             }
           },
           child: const Text('SAVE'),
-        ),
+        )
       ],
     );
   }
@@ -108,22 +108,32 @@ class _BookItemDialogUpdateState extends State<BookItemDialogUpdate> {
     }
   }
 
-  Future<void> updateBookCopyOnServer(BookItem item, Shelf? shelf, String status, String? damageImage) async {
-    final body = {
-      'shelf_id': shelf?.id,
-      'status': status,
-      'damage_image': damageImage,
-    };
+  Future<BookItem> fetchBookItemById(int id) async {
+    final res = await http.get(Uri.parse('http://localhost:3003/api/bookcopies/$id'));
 
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return BookItem.fromJson(data);
+    } else {
+      throw Exception('Failed to load BookItem');
+    }
+  }
+
+  Future<void> updateBookItem(String id, int? shelfId, String status, String? damageImage) async {
     final res = await http.put(
-      Uri.parse('http://localhost:3003/api/bookcopies/${item.id}'),
+      Uri.parse('http://localhost:3003/api/bookcopies/$id'),
       headers: {'Content-Type': 'application/json'},
-      body: json.encode(body),
+      body: json.encode({
+        'shelf_id': shelfId,
+        'status': status,
+        'damage_image': damageImage,
+      }),
     );
 
     if (res.statusCode != 200) {
-      throw Exception('Update thất bại: ${res.body}');
+      throw Exception('Failed to update BookItem: ${res.body}');
     }
   }
+
 }
 

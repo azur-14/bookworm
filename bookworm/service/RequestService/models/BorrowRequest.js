@@ -4,7 +4,7 @@ const borrowRequestSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   user_id: { type: String, required: true },
   book_id: { type: String, required: true },
-  book_copy_id: { type: Number },
+  book_copy_id: { type: String },
   status: { type: String, enum: ['pending', 'approved', 'rejected', 'cancelled'], default: 'pending' },
   request_date: { type: Date, default: Date.now },
   receive_date: { type: Date },

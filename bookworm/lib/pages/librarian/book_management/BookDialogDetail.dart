@@ -200,11 +200,14 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                                             IconButton(
                                               icon: const Icon(Icons.edit, size: 20, color: AppColors.primary),
                                               onPressed: () async {
-                                                await showDialog(
+                                                final result = await showDialog(
                                                   context: context,
                                                   builder: (_) => BookItemDialogUpdate(bookItem: item),
                                                 );
-                                                setState(() {});
+                                                if (result == true) {
+                                                  await _loadShelves(); // load lại capacity kệ
+                                                  setState(() {});      // refresh danh sách item
+                                                }
                                               },
                                             ),
                                           ],
@@ -279,10 +282,6 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
     );
   }
 
-  Future<void> updateBookItemOnServer(BookItem item) async {
-    await Future.delayed(const Duration(milliseconds: 200)); // giả lập API
-  }
-
   Future<List<BookItem>> fetchBookCopiesByBookId(String bookId) async {
     final res = await http.get(Uri.parse('http://localhost:3003/api/bookcopies/by-book/$bookId'));
     if (res.statusCode == 200) {
@@ -306,7 +305,6 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
   Future<void> _loadShelves() async {
     try {
       final shelves = await fetchAvailableShelves();
-      print(shelves.first.name);
       setState(() {
         _shelves
           ..clear()

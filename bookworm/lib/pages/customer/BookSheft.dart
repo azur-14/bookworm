@@ -237,9 +237,7 @@ class _BookShelfPageState extends State<BookShelfPage> {
           children: [
             Expanded(
               flex: 3,
-              child: b.image.isNotEmpty
-                  ? Image.network(b.image, fit: BoxFit.cover)
-                  : Container(color: Colors.grey[300]),
+              child: _bookImage(b)
             ),
             Flexible(
               flex: 1,
@@ -307,5 +305,21 @@ class _BookShelfPageState extends State<BookShelfPage> {
         );
       },
     );
+  }
+
+  Widget _bookImage(Book book) {
+    if (book.image.isEmpty) return const SizedBox.shrink();
+    try {
+      final bytes = base64Decode(book.image);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.memory(bytes, height: 140, width: 100, fit: BoxFit.cover),
+      );
+    } catch (_) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(book.image, height: 140, width: 100, fit: BoxFit.cover),
+      );
+    }
   }
 }

@@ -6,6 +6,8 @@ import '../../model/Room.dart';
 import '../../model/RoomBookingRequest.dart';
 import '../../theme/AppColor.dart';
 import 'PaymentScreen.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 
 class RoomBookingPage extends StatefulWidget {
@@ -14,22 +16,19 @@ class RoomBookingPage extends StatefulWidget {
 }
 
 class _RoomBookingPageState extends State<RoomBookingPage> {
-  final List<Room> _rooms = [
-    Room(id: 'r1',
-        name: 'Phòng Thảo Luận A',
-        floor: 'Tầng 1',
-        capacity: 6,
-        fee: 20000),
-    Room(id: 'r2',
-        name: 'Phòng Đọc Yên Tĩnh',
-        floor: 'Tầng 2',
-        capacity: 4,
-        fee: 15000),
-  ];
+  List<Room> _rooms = [];
 
   final Map<String, List<RoomBookingRequest>> _bookingMap = {};
   final Set<DateTime> _selectedSlots = {};
   Room? _activeRoom;
+  int _weekOffset = 0;
+  final TextEditingController _purposeController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
 
   void _showCustomTimeDialog(Room room) async {
     DateTime now = DateTime.now();
@@ -55,50 +54,55 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
         pickedDate.year, pickedDate.month, pickedDate.day, end.hour,
         end.minute);
 
-    _goToPaymentScreen(room, startTime, endTime);
+    _saveBooking(room, startTime, endTime);
   }
 
-  void _goToPaymentScreen(Room room, DateTime start, DateTime end) {
-    final total = ((end
-        .difference(start)
-        .inMinutes / 60).ceil()) * room.fee;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            PaymentScreen(
-              amount: total,
-              onSuccess: () => _saveBooking(room, start, end),
-            ),
-      ),
-    );
-  }
+  // void _goToPaymentScreen(Room room, DateTime start, DateTime end) {
+  //   final total = ((end
+  //       .difference(start)
+  //       .inMinutes / 60).ceil()) * room.fee;
+  //   Navigator.push(
+  //     context,
+  //     MaterialPageRoute(
+  //       builder: (_) =>
+  //           PaymentScreen(
+  //             amount: total,
+  //             onSuccess: () => _saveBooking(room, start, end),
+  //           ),
+  //     ),
+  //   );
+  // }
 
   void _saveBooking(Room room, DateTime start, DateTime end) async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('userId') ?? 'demoUser';
     final newRequest = RoomBookingRequest(
-      id: DateTime
-          .now()
-          .millisecondsSinceEpoch
-          .toString(),
+      id: DateTime.now().millisecondsSinceEpoch.toString(), // chỉ local
       userId: userId,
       roomId: room.id,
       startTime: start,
       endTime: end,
       status: 'pending',
-      purpose: 'Mặc định',
+      purpose: _purposeController.text.trim(),
       requestTime: DateTime.now(),
     );
-    setState(() {
-      _bookingMap.putIfAbsent(room.id, () => []).add(newRequest);
-    });
+
+    try {
+      await sendBookingRequest(newRequest); // gửi về backend
+      setState(() {
+        _bookingMap.putIfAbsent(room.id, () => []).add(newRequest);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đặt phòng thành công!')));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đặt phòng thất bại: $e')));
+    }
   }
 
   void _openSchedule(Room room) {
     final bookings = _bookingMap[room.id] ?? [];
     final now = DateTime.now();
-    final days = List.generate(5, (i) => now.add(Duration(days: i)));
+    final weekStart = now.add(Duration(days: _weekOffset * 7));
+    final days = List.generate(7, (i) => weekStart.add(Duration(days: i)));
     final startHour = 8;
     final endHour = 18;
     _selectedSlots.clear();
@@ -106,10 +110,13 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
 
     showDialog(
       context: context,
-      builder: (_) =>
-          Dialog(
-            child: StatefulBuilder(
-              builder: (ctx, setStateDialog) =>
+      builder: (_) => Dialog(
+      insetPadding: EdgeInsets.zero, // bỏ giới hạn padding
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width,
+        height: MediaQuery.of(context).size.height,
+        child: StatefulBuilder(
+          builder: (ctx, setStateDialog) =>
                   Container(
                     width: 800,
                     height: 520,
@@ -122,6 +129,30 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
                             Text('Lịch phòng: ${room.name}',
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold)),
+                            const Spacer(),
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back),
+                              onPressed: _weekOffset > 0
+                                  ? () {
+                                Navigator.pop(ctx);
+                                setState(() {
+                                  _weekOffset--;
+                                });
+                                _openSchedule(room);
+                              }
+                                  : null, // vô hiệu hóa nếu đang ở tuần hiện tại
+                            ),
+                            SizedBox(width: 20),
+                            IconButton(
+                              icon: const Icon(Icons.arrow_forward),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                setState(() {
+                                  _weekOffset++;
+                                });
+                                _openSchedule(room);
+                              },
+                            ),
                             const Spacer(),
                             TextButton.icon(
                               onPressed: () => _showCustomTimeDialog(room),
@@ -136,57 +167,106 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
                             scrollDirection: Axis.vertical,
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: days.map((day) {
-                                  return Column(
-                                    children: List.generate(
-                                        endHour - startHour, (i) {
-                                      final hour = startHour + i;
-                                      final slot = DateTime(
-                                          day.year, day.month, day.day, hour);
-                                      final slotEnd = slot.add(
-                                          Duration(hours: 1));
-                                      final isBooked = bookings.any(
-                                            (b) =>
-                                        b.startTime.isBefore(slotEnd) &&
-                                            b.endTime.isAfter(slot),
-                                      );
-                                      final isSelected = _selectedSlots
-                                          .contains(slot);
-                                      return GestureDetector(
-                                        onTap: isBooked
-                                            ? null
-                                            : () {
-                                          setStateDialog(() {
-                                            if (isSelected) {
-                                              _selectedSlots.remove(slot);
-                                            } else {
-                                              _selectedSlots.add(slot);
-                                            }
-                                          });
-                                        },
-                                        child: Container(
-                                          margin: const EdgeInsets.all(2),
-                                          width: 120,
-                                          height: 40,
-                                          decoration: BoxDecoration(
-                                            color: isBooked
-                                                ? Colors.red[200]
-                                                : isSelected
-                                                ? Colors.green[200]
-                                                : Colors.grey[100],
-                                            border: Border.all(
-                                                color: Colors.grey),
-                                          ),
-                                          child: Center(
-                                              child: Text('${hour}:00')),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Row header: ngày
+                                  Row(
+                                    children: [
+                                      const SizedBox(width: 80), // chừa khoảng cho giờ
+                                      ...days.map((d) => Container(
+                                        width: 100,
+                                        alignment: Alignment.center,
+                                        margin: const EdgeInsets.all(2),
+                                        child: Text(
+                                          DateFormat('E\ndd/MM').format(d),
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(fontWeight: FontWeight.bold),
                                         ),
-                                      );
-                                    }),
-                                  );
-                                }).toList(),
+                                      )),
+                                    ],
+                                  ),
+                                  // Grid: giờ x ngày
+                                  ...List.generate(endHour - startHour, (i) {
+                                    final hour = startHour + i;
+                                    return Row(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 80,
+                                          height: 40,
+                                          alignment: Alignment.center,
+                                          child: Text('${hour}:00', style: const TextStyle(fontWeight: FontWeight.w500)),
+                                        ),
+                                        ...days.map((day) {
+                                          final slot = DateTime(day.year, day.month, day.day, hour);
+                                          final slotEnd = slot.add(const Duration(hours: 1));
+                                          final isBooked = bookings.any((b) {
+                                            final localStart = b.startTime.toLocal();
+                                            final localEnd = b.endTime.toLocal();
+                                            return b.status != 'rejected' &&
+                                                localStart.isBefore(slotEnd) &&
+                                                localEnd.isAfter(slot);
+                                          });
+                                          final isSelected = _selectedSlots.contains(slot);
+
+                                          return GestureDetector(
+                                            onTap: isBooked
+                                                ? null
+                                                : () {
+                                              setStateDialog(() {
+                                                if (isSelected) {
+                                                  _selectedSlots.remove(slot);
+                                                } else {
+                                                  _selectedSlots.add(slot);
+                                                }
+                                              });
+                                            },
+                                            child: Container(
+                                              margin: const EdgeInsets.all(2),
+                                              width: 100,
+                                              height: 40,
+                                              decoration: BoxDecoration(
+                                                color: isBooked
+                                                    ? Colors.red[200]
+                                                    : isSelected
+                                                    ? Colors.green[200]
+                                                    : Colors.grey[100],
+                                                border: Border.all(color: Colors.grey),
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ],
+                                    );
+                                  }),
+                                ],
                               ),
                             ),
+                          ),
+                        ),
+                        const Text(
+                          'Lý do sử dụng phòng',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _purposeController,
+                          maxLines: 2,
+                          decoration: InputDecoration(
+                            hintText: 'Nhập lý do...',
+                            filled: true,
+                            fillColor: AppColors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 16),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -204,8 +284,8 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
                                   ..sort();
                                 final start = sorted.first;
                                 final end = sorted.last.add(Duration(hours: 1));
+                                _saveBooking(room, start, end);
                                 Navigator.pop(ctx);
-                                _goToPaymentScreen(room, start, end);
                               },
                               child: const Text('Đặt các giờ đã chọn'),
                             ),
@@ -214,8 +294,9 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
                       ],
                     ),
                   ),
+              ),
             ),
-          ),
+        ),
     );
   }
 
@@ -304,4 +385,66 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
       ),
     );
   }
+
+  Future<List<Room>> fetchRooms() async {
+    final res = await http.get(Uri.parse('http://localhost:3001/api/rooms'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<Room>.from(data.map((r) => Room.fromJson(r)));
+    } else {
+      throw Exception('Failed to load rooms');
+    }
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final fetchedRooms = await fetchRooms();
+      final fetchedBookings = await fetchAllRoomBookingRequests();
+
+      final bookingMap = <String, List<RoomBookingRequest>>{};
+      for (var req in fetchedBookings) {
+        bookingMap.putIfAbsent(req.roomId, () => []).add(req);
+      }
+
+      setState(() {
+        _rooms = fetchedRooms;
+        _bookingMap.clear();
+        _bookingMap.addAll(bookingMap); // cập nhật vào map
+      });
+    } catch (e) {
+      debugPrint('Lỗi khi tải dữ liệu phòng hoặc đặt phòng: $e');
+    }
+  }
+
+  Future<void> sendBookingRequest(RoomBookingRequest request) async {
+    final url = Uri.parse('http://localhost:3002/api/roomBookingRequest');
+    final res = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'user_id': request.userId,
+        'room_id': request.roomId,
+        'start_time': request.startTime.toIso8601String(),
+        'end_time': request.endTime.toIso8601String(),
+        'status': request.status,
+        'purpose': request.purpose,
+        'request_time': request.requestTime.toIso8601String(),
+      }),
+    );
+
+    if (res.statusCode != 201) {
+      throw Exception('Lỗi khi gửi yêu cầu đặt phòng: ${res.body}');
+    }
+  }
+
+  Future<List<RoomBookingRequest>> fetchAllRoomBookingRequests() async {
+    final res = await http.get(Uri.parse('http://localhost:3002/api/roomBookingRequest'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<RoomBookingRequest>.from(data.map((e) => RoomBookingRequest.fromJson(e)));
+    } else {
+      throw Exception('Lỗi khi tải RoomBookingRequest');
+    }
+  }
+
 }

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Book = require('../models/Book');
 const BookCopy = require('../models/BookCopy');
+const Shelf = require('../models/Shelves');
 
 // GET /api/books — lấy toàn bộ sách
 router.get('/', async (req, res) => {
@@ -84,16 +85,37 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Xoá sách
+    // 1. Lấy tất cả BookCopy cần xoá để biết kệ nào bị ảnh hưởng
+    const copies = await BookCopy.find({ book_id: id });
+
+    // 2. Xoá sách
     const deletedBook = await Book.findOneAndDelete({ id });
     if (!deletedBook) {
       return res.status(404).json({ message: 'Book not found' });
     }
 
-    // Xoá tất cả BookCopy liên quan
+    // 3. Xoá tất cả bản sao
     await BookCopy.deleteMany({ book_id: id });
 
-    res.json({ message: 'Book and all related copies deleted successfully' });
+    // 4. Cập nhật lại capacity của các shelf liên quan
+    const shelfMap = new Map();
+
+    // Đếm số bản sao bị xóa trên mỗi shelf
+    copies.forEach(copy => {
+      if (copy.shelf_id != null) {
+        const sid = copy.shelf_id;
+        shelfMap.set(sid, (shelfMap.get(sid) || 0) + 1);
+      }
+    });
+
+    // Trừ capacity tương ứng trên từng shelf
+    for (const [shelfId, reduceCount] of shelfMap.entries()) {
+      await Shelf.updateOne({ id: shelfId }, {
+        $inc: { capacity: -reduceCount }
+      });
+    }
+
+    res.json({ message: 'Book, copies deleted & shelf capacity updated' });
   } catch (err) {
     res.status(500).json({ message: 'Lỗi khi xoá sách', error: err.message });
   }

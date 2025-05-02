@@ -119,9 +119,19 @@ router.put('/bulk-update-shelf', async (req, res) => {
 // update bookCopy
 router.put('/:id', async (req, res) => {
   try {
-    const id = parseInt(req.params.id); // id là số nguyên
+    const id = req.params.id;
     const { shelf_id, status, damage_image } = req.body;
 
+    // 1. Tìm bookCopy hiện tại để biết shelf cũ
+    const copy = await BookCopy.findOne({ id });
+    if (!copy) {
+      return res.status(404).json({ message: 'BookCopy không tồn tại' });
+    }
+
+    const oldShelfId = copy.shelf_id;
+    const newShelfId = shelf_id;
+
+    // 2. Cập nhật BookCopy
     const updateFields = {};
     if (shelf_id !== undefined) updateFields.shelf_id = shelf_id;
     if (status !== undefined) updateFields.status = status;
@@ -130,7 +140,17 @@ router.put('/:id', async (req, res) => {
     const result = await BookCopy.updateOne({ id: id }, { $set: updateFields });
 
     if (result.modifiedCount === 0) {
-      return res.status(404).json({ message: 'Không tìm thấy book copy hoặc không có thay đổi' });
+      return res.status(200).json({ message: 'Không có thay đổi gì để cập nhật' });
+    }
+
+    // 3. Nếu shelf thay đổi, cập nhật capacity tương ứng
+    if (oldShelfId !== newShelfId) {
+      if (oldShelfId != null) {
+        await Shelf.updateOne({ id: oldShelfId }, { $inc: { capacity: -1 } });
+      }
+      if (newShelfId != null) {
+        await Shelf.updateOne({ id: newShelfId }, { $inc: { capacity: 1 } });
+      }
     }
 
     res.json({ message: 'Cập nhật thành công', updated: result.modifiedCount });

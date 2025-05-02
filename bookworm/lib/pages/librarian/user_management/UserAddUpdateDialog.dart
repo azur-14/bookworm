@@ -1,9 +1,11 @@
+// /pages/user_management/widgets/user_add_update_dialog.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:bookworm/model/User.dart';
 import 'UserTextField.dart';
 import 'UserPasswordField.dart';
+import 'package:http/http.dart' as http;
 import 'package:bookworm/theme/AppColor.dart'; // 👈 Thêm dòng này
 
 class UserAddUpdateDialog extends StatefulWidget {
@@ -67,7 +69,7 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
     }
   }
 
-  void _submit() {
+  void _submit() async {
     if (_nameCtl.text.trim().isEmpty) {
       _showError("Name không được để trống.");
       return;
@@ -93,8 +95,18 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
       timeCreate: widget.user?.timeCreate ?? DateTime.now(),
     );
 
-    widget.onSubmit(user);
-    Navigator.pop(context);
+    try {
+      if (widget.user == null) {
+        await addUser(user);
+      } else {
+        await updateUser(user);
+      }
+
+      widget.onSubmit(user); // callback để cập nhật giao diện bên ngoài
+      Navigator.pop(context);
+    } catch (e) {
+      _showError(e.toString());
+    }
   }
 
   void _showError(String message) {
@@ -214,4 +226,56 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
       ],
     );
   }
+
+  Future<void> addUser(User user) async {
+    final res = await http.post(
+      Uri.parse('http://localhost:3000/api/users/signup'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': user.name,
+        'email': user.email,
+        'phone': user.phone,
+        'password': user.password,
+        'role': user.role,
+        'status': user.status,
+        'avatar': user.avatar,
+      }),
+    );
+
+    if (res.statusCode != 201) {
+      throw Exception('Failed to add user: ${res.body}');
+    }
+  }
+
+  Future<void> updateUser(User user) async {
+    final res = await http.put(
+      Uri.parse('http://localhost:3000/api/users/${user.id}'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': user.name,
+        'email': user.email,
+        'phone': user.phone,
+        'password': user.password,
+        'role': user.role,
+        'status': user.status,
+        'avatar': user.avatar,
+      }),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('Failed to update user: ${res.body}');
+    }
+  }
+
+  Future<User> fetchUserById(String id) async {
+    final res = await http.get(Uri.parse('http://localhost:3000/api/users/$id'));
+
+    if (res.statusCode == 200) {
+      final json = jsonDecode(res.body);
+      return User.fromJson(json);
+    } else {
+      throw Exception('Failed to load user');
+    }
+  }
+
 }
