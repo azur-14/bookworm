@@ -1,8 +1,9 @@
+// lib/pages/BookingReviewPage.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:bookworm/theme/AppColor.dart';
 import 'package:bookworm/model/RoomBookingRequest.dart';
-import 'package:flutter/material.dart';
+import 'package:bookworm/model/Bill.dart';
+import 'package:bookworm/theme/AppColor.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -16,7 +17,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   final TextEditingController _searchCtl = TextEditingController();
   List<RoomBookingRequest> _allRequests = [];
 
-  // Biến cho Lọc Lịch sử
+  // Lọc lịch sử
   String _historyFilter = 'Tất cả';
   DateTime _historyDate = DateTime.now();
   int _historyYear = DateTime.now().year;
@@ -27,14 +28,143 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   void initState() {
     super.initState();
     _loadRequests();
-    fetchRoomBookingRequests().then((list) {
-      setState(() => _allRequests = list);
-    });
     _searchCtl.addListener(() => setState(() {}));
   }
 
-  void _loadRequests() {
+  Future<void> _loadRequests() async {
+    try {
+      final list = await fetchRoomBookingRequests();
+      setState(() => _allRequests = list);
+    } catch (e) {
+      debugPrint('Lỗi khi tải yêu cầu: $e');
+    }
+  }
+
+  Future<List<RoomBookingRequest>> fetchRoomBookingRequests() async {
+    final url = Uri.parse('http://localhost:3002/api/roomBookingRequest');
+    final res = await http.get(url);
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body) as List;
+      return data.map((e) => RoomBookingRequest.fromJson(e)).toList();
+    }
+    throw Exception('Lỗi khi tải RoomBookingRequest');
+  }
+
+  Future<Bill> _createBill(Bill bill) async {
+    final url = Uri.parse('http://localhost:3002/api/bills');
+    final res = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(bill.toJson()),
+    );
+    if (res.statusCode == 201) {
+      return Bill.fromJson(json.decode(res.body));
+    }
+    throw Exception('Lỗi khi tạo hóa đơn: ${res.body}');
+  }
+
+  void _showInvoiceDialog(RoomBookingRequest req) {
     final now = DateTime.now();
+    final overdueDays =
+    now.isAfter(req.endTime) ? now.difference(req.endTime).inDays : 0;
+    final overdueFee = overdueDays * 10000; // 10k/ngày
+    final damageFee = req.purpose.contains('hư hỏng') ? 50000 : 0;
+    final totalFee = overdueFee + damageFee;
+
+    final amountCtl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Thanh toán & Hóa đơn'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Yêu cầu ID: ${req.id}'),
+            const SizedBox(height: 8),
+            Text(
+                'Thời gian: ${DateFormat('yyyy-MM-dd HH:mm').format(req.startTime)} → ${DateFormat('HH:mm').format(req.endTime)}'),
+            const Divider(),
+            Text('Quá hạn: $overdueDays ngày → ${overdueFee}₫'),
+            Text('Phí hư hỏng: ${damageFee}₫'),
+            const Divider(),
+            Text('TỔNG: ${totalFee}₫',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountCtl,
+              keyboardType: TextInputType.number,
+              decoration:
+              const InputDecoration(labelText: 'Khách thanh toán (₫)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final paid = int.tryParse(amountCtl.text.trim()) ?? 0;
+              final change = paid - totalFee;
+              final bill = Bill(
+                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                borrowRequestId: req.id,
+                overdueDays: overdueDays,
+                overdueFee: overdueFee,
+                damageFee: damageFee,
+                totalFee: totalFee,
+                amountReceived: paid,
+                changeGiven: change < 0 ? 0 : change,
+              );
+              try {
+                final created = await _createBill(bill);
+                Navigator.pop(context);
+                _showBillPreview(created);
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Lỗi tạo hóa đơn: $e')),
+                );
+              }
+            },
+            child: const Text('Xác nhận'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBillPreview(Bill bill) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Hóa đơn đã xuất'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mã hóa đơn: ${bill.id}'),
+            Text('Yêu cầu: ${bill.borrowRequestId}'),
+            Text('Ngày: ${DateFormat('yyyy-MM-dd – kk:mm').format(bill.date)}'),
+            const Divider(),
+            Text('Quá hạn: ${bill.overdueDays} ngày → ${bill.overdueFee}₫'),
+            Text('Hư hỏng: ${bill.damageFee}₫'),
+            const Divider(),
+            Text('Tổng: ${bill.totalFee}₫',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text('Khách trả: ${bill.amountReceived}₫'),
+            Text('Tiền thối: ${bill.changeGiven}₫'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
   }
 
   List<RoomBookingRequest> get _pending =>
@@ -42,46 +172,46 @@ class _BookingReviewPageState extends State<BookingReviewPage>
 
   List<RoomBookingRequest> get _ongoing {
     final now = DateTime.now();
-    print(now);
-    return _allRequests.where((r) =>
-    r.status == 'approved' &&
-        r.endTime.isAfter(now)).toList();
+    return _allRequests
+        .where((r) => r.status == 'approved' && r.endTime.isAfter(now))
+        .toList();
   }
 
-  // 1. Mở rộng _past để bao gồm cả approved (kết thúc) và tất cả các rejected
   List<RoomBookingRequest> get _past {
     final now = DateTime.now();
-    return _allRequests.where((r) =>
-    // đã approve và kết thúc trước giờ hiện tại
-    (r.status == 'approved')
-        // hoặc đã bị reject (bất kỳ lúc nào)
-        || r.status == 'rejected'
-    ).toList();
+    return _allRequests
+        .where((r) =>
+    (r.status == 'approved' && r.endTime.isBefore(now)) ||
+        r.status == 'rejected')
+        .toList();
   }
-
 
   List<RoomBookingRequest> get _filteredPast {
     switch (_historyFilter) {
       case 'Ngày':
-        return _past.where((r) =>
+        return _past
+            .where((r) =>
         r.startTime.year == _historyDate.year &&
             r.startTime.month == _historyDate.month &&
-            r.startTime.day == _historyDate.day
-        ).toList();
+            r.startTime.day == _historyDate.day)
+            .toList();
       case 'Tháng':
-        return _past.where((r) =>
+        return _past
+            .where((r) =>
         r.startTime.year == _historyYear &&
-            r.startTime.month == _historyMonth
-        ).toList();
+            r.startTime.month == _historyMonth)
+            .toList();
       case 'Quý':
-        return _past.where((r) {
+        return _past
+            .where((r) {
           final q = ((r.startTime.month - 1) ~/ 3) + 1;
           return r.startTime.year == _historyYear && q == _historyQuarter;
-        }).toList();
+        })
+            .toList();
       case 'Năm':
-        return _past.where((r) =>
-        r.startTime.year == _historyYear
-        ).toList();
+        return _past
+            .where((r) => r.startTime.year == _historyYear)
+            .toList();
       default:
         return _past;
     }
@@ -93,15 +223,17 @@ class _BookingReviewPageState extends State<BookingReviewPage>
         a.roomId == req.roomId &&
         a.id != req.id &&
         a.startTime.isBefore(req.endTime) &&
-        a.endTime.isAfter(req.startTime)
-    );
+        a.endTime.isAfter(req.startTime));
   }
 
   Color _badgeColor(String st) {
     switch (st) {
-      case 'approved': return Colors.green;
-      case 'pending':  return AppColors.primary;
-      default:         return Colors.grey;
+      case 'approved':
+        return Colors.green;
+      case 'pending':
+        return AppColors.primary;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -139,8 +271,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
           ]),
           const SizedBox(height: 8),
           Text(
-            '${DateFormat('yyyy-MM-dd HH:mm').format(r.startTime)} → '
-                '${DateFormat('HH:mm').format(r.endTime)}',
+            '${DateFormat('yyyy-MM-dd HH:mm').format(r.startTime)} → ${DateFormat('HH:mm').format(r.endTime)}',
           ),
           const SizedBox(height: 4),
           Text('User: ${r.userId}'),
@@ -198,8 +329,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
           ]),
           const SizedBox(height: 8),
           Text(
-            '${DateFormat('yyyy-MM-dd HH:mm').format(r.startTime)} → '
-                '${DateFormat('HH:mm').format(r.endTime)}',
+            '${DateFormat('yyyy-MM-dd HH:mm').format(r.startTime)} → ${DateFormat('HH:mm').format(r.endTime)}',
           ),
           const SizedBox(height: 4),
           Text('User: ${r.userId}'),
@@ -214,14 +344,12 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     );
   }
 
-  // 2. Cập nhật buildPastCard để hiển thị badge “REJECTED” màu đỏ
   Widget _buildPastCard(RoomBookingRequest r) {
     final isRejected = r.status == 'rejected';
     final badgeLabel = isRejected ? 'REJECTED' : 'PAST';
     final badgeColor = isRejected ? Colors.red : Colors.grey;
 
     return Card(
-      // nền đỏ nhạt nếu reject, ngược lại trắng
       color: isRejected ? Colors.red.shade50 : AppColors.white,
       shape: RoundedRectangleBorder(
         side: BorderSide(color: badgeColor),
@@ -252,17 +380,55 @@ class _BookingReviewPageState extends State<BookingReviewPage>
           ]),
           const SizedBox(height: 8),
           Text(
-            '${DateFormat('yyyy-MM-dd HH:mm').format(r.startTime)} → '
-                '${DateFormat('HH:mm').format(r.endTime)}',
+            '${DateFormat('yyyy-MM-dd HH:mm').format(r.startTime)} → ${DateFormat('HH:mm').format(r.endTime)}',
           ),
           const SizedBox(height: 4),
           Text('User: ${r.userId}'),
           Text('Mục đích: ${r.purpose}'),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              OutlinedButton(
+                onPressed: null,
+                child: Text(badgeLabel),
+              ),
+              if (!isRejected) ...[
+                ElevatedButton(
+                  onPressed: () => _showInvoiceDialog(r),
+                  child: const Text('Hóa đơn'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ]),
       ),
     );
   }
 
+  Future<void> _updateStatus(RoomBookingRequest r, String newStatus) async {
+    final url = Uri.parse(
+        'http://localhost:3002/api/roomBookingRequest/${r.id}');
+    final res = await http.put(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'status': newStatus}),
+    );
+    if (res.statusCode == 200) {
+      setState(() => r.status = newStatus);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Trạng thái đã chuyển → ${newStatus.toUpperCase()}'),
+          backgroundColor: _badgeColor(newStatus),
+        ),
+      );
+    } else {
+      throw Exception('Không thể cập nhật: ${res.body}');
+    }
+  }
 
   @override
   void dispose() {
@@ -283,7 +449,6 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     r.roomId.toLowerCase().contains(filter) ||
         r.userId.toLowerCase().contains(filter))
         .toList();
-    // Chỉ lọc trên dữ liệu lịch sử
     final historyList = _filteredPast
         .where((r) =>
     r.roomId.toLowerCase().contains(filter) ||
@@ -296,241 +461,122 @@ class _BookingReviewPageState extends State<BookingReviewPage>
         backgroundColor: AppColors.background,
         appBar: AppBar(
           backgroundColor: AppColors.primary,
-          title: const Text('Quản lý đặt phòng',
-              style: TextStyle(color: AppColors.white)),
-          elevation: 0,
-          bottom: TabBar(
+          title: const Text('Quản lý đặt phòng', style: TextStyle(color: AppColors.white)),
+          bottom: const TabBar(
             indicatorColor: AppColors.white,
-            labelColor: AppColors.white,
-            unselectedLabelColor: AppColors.white,
-            tabs: const [
+            tabs: [
               Tab(text: 'Yêu cầu'),
               Tab(text: 'Đang mượn'),
               Tab(text: 'Lịch sử'),
             ],
           ),
         ),
-        body: Column(children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              controller: _searchCtl,
-              decoration: InputDecoration(
-                hintText: 'Tìm phòng hoặc user...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8)),
-                isDense: true,
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: TextField(
+                controller: _searchCtl,
+                decoration: InputDecoration(
+                  hintText: 'Tìm phòng hoặc user...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  isDense: true,
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: TabBarView(children: [
-              // Pending
-              pending.isEmpty
-                  ? const Center(child: Text('Không có yêu cầu.'))
-                  : ListView(children: pending.map(_buildRequestCard).toList()),
-              // Ongoing
-              ongoing.isEmpty
-                  ? const Center(child: Text('Không có booking đang diễn ra.'))
-                  : ListView(children: ongoing.map(_buildOngoingCard).toList()),
-              // Lịch sử (có filter theo Ngày/Tháng/Quý/Năm)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Row(children: [
-                    // Dropdown “Xem theo”
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _historyFilter,
-                        decoration: InputDecoration(
-                          labelText: 'Xem theo',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          isDense: true,
-                        ),
-                        items: ['Tất cả','Ngày','Tháng','Quý','Năm']
-                            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                            .toList(),
-                        onChanged: (v) {
-                          if (v != null) setState(() => _historyFilter = v);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Nút chọn thời điểm tương ứng
-                    if (_historyFilter == 'Ngày')
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            final d = await showDatePicker(
-                              context: context,
-                              initialDate: _historyDate,
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime.now(),
-                            );
-                            if (d != null) setState(() => _historyDate = d);
-                          },
-                          child: Text(DateFormat('yyyy-MM-dd').format(_historyDate)),
-                        ),
-                      )
-                    else if (_historyFilter == 'Tháng')
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () async {
-                            final y = await showDatePicker(
-                              context: context,
-                              initialDate: DateTime(_historyYear, _historyMonth),
-                              firstDate: DateTime(2000),
-                              lastDate: DateTime.now(),
-                              selectableDayPredicate: (_) => false,
-                            );
-                            if (y != null) setState(() {
-                              _historyYear = y.year;
-                              _historyMonth = y.month;
-                            });
-                          },
-                          child: Text('${_historyYear}-${_historyMonth.toString().padLeft(2,'0')}'),
-                        ),
-                      )
-                    else if (_historyFilter == 'Quý')
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () async {
-                              final q = await showModalBottomSheet<int>(
-                                context: context,
-                                builder: (_) => ListView(
-                                  children: List.generate(4, (i) async {
-                                    final q = await showModalBottomSheet<int>(
-                                      context: context,
-                                      builder: (BuildContext ctx) {
-                                        return ListView(
-                                          children: List.generate(4, (i) {
-                                            final label = 'Quý ${i + 1}';
-                                            return ListTile(
-                                              title: Text(label),
-                                              onTap: () => Navigator.pop(ctx, i + 1),
-                                            );
-                                          }),
-                                        );
-                                      },
-                                    );
-                                    if (q != null) {
-                                      setState(() => _historyQuarter = q);
-                                    }
-                                  } as Widget Function(int index)),
-                                ),
-                              );
-                              if (q != null) setState(() => _historyQuarter = q);
-                            },
-                            child: Text('Q$_historyQuarter/${_historyYear}'),
-                          ),
-                        )
-                      else if (_historyFilter == 'Năm')
+            Expanded(
+              child: TabBarView(
+                children: [
+                  // Pending
+                  pending.isEmpty
+                      ? const Center(child: Text('Không có yêu cầu.'))
+                      : ListView(children: pending.map(_buildRequestCard).toList()),
+
+                  // Ongoing
+                  ongoing.isEmpty
+                      ? const Center(child: Text('Không có booking đang diễn ra.'))
+                      : ListView(children: ongoing.map(_buildOngoingCard).toList()),
+
+                  // Lịch sử + hóa đơn
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(children: [
                           Expanded(
-                            child: OutlinedButton(
-                              onPressed: () async {
-                                final y = await showDatePicker(
-                                  context: context,
-                                  initialDate: DateTime(_historyYear),
-                                  firstDate: DateTime(2000),
-                                  lastDate: DateTime.now(),
-                                  selectableDayPredicate: (_) => false,
-                                );
-                                if (y != null) setState(() => _historyYear = y.year);
+                            child: DropdownButtonFormField<String>(
+                              value: _historyFilter,
+                              decoration: InputDecoration(
+                                labelText: 'Xem theo',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                isDense: true,
+                              ),
+                              items: ['Tất cả','Ngày','Tháng','Quý','Năm']
+                                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                                  .toList(),
+                              onChanged: (v) {
+                                if (v != null) setState(() => _historyFilter = v);
                               },
-                              child: Text('$_historyYear'),
                             ),
-                          )
-                        else
-                          const Spacer(),
-                  ]),
-                  const SizedBox(height: 16),
-                  Text('Tổng booking: ${historyList.length}',
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: historyList.isEmpty
-                        ? const Center(child: Text('Không có lịch sử.'))
-                        : ListView.builder(
-                      itemCount: historyList.length,
-                      itemBuilder: (ctx, i) => _buildPastCard(historyList[i]),
+                          ),
+                          const SizedBox(width: 12),
+                          if (_historyFilter == 'Ngày')
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  final d = await showDatePicker(
+                                    context: context,
+                                    initialDate: _historyDate,
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime.now(),
+                                  );
+                                  if (d != null) setState(() => _historyDate = d);
+                                },
+                                child: Text(DateFormat('yyyy-MM-dd').format(_historyDate)),
+                              ),
+                            )
+                          else if (_historyFilter == 'Tháng')
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  final y = await showDatePicker(
+                                    context: context,
+                                    initialDate: DateTime(_historyYear, _historyMonth),
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime.now(),
+                                    selectableDayPredicate: (_) => false,
+                                  );
+                                  if (y != null) setState(() {
+                                    _historyYear = y.year;
+                                    _historyMonth = y.month;
+                                  });
+                                },
+                                child: Text('${_historyYear}-${_historyMonth.toString().padLeft(2,'0')}'),
+                              ),
+                            )
+                          else
+                            const Spacer(),
+                        ]),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: historyList.isEmpty
+                              ? const Center(child: Text('Không có lịch sử.'))
+                              : ListView.builder(
+                            itemCount: historyList.length,
+                            itemBuilder: (ctx, i) => _buildPastCard(historyList[i]),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ]),
+                ],
               ),
-            ]),
-          ),
-        ]),
+            ),
+          ],
+        ),
       ),
     );
-  }
-
-
-  Future<List<RoomBookingRequest>> fetchRoomBookingRequests() async {
-    final url = Uri.parse('http://localhost:3002/api/roomBookingRequest'); // đổi URL nếu là borrow
-    final response = await http.get(url);
-
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((e) => RoomBookingRequest.fromJson(e)).toList();
-    } else {
-      throw Exception('Lỗi khi tải danh sách yêu cầu mượn phòng');
-    }
-  }
-
-  Future<void> _updateStatus(RoomBookingRequest r, String newStatus) async {
-    final requestId = r.id;
-    final url = Uri.parse('http://localhost:3002/api/roomBookingRequest/$requestId');
-    final res = await http.put(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'status': newStatus}),
-    );
-
-    if (res.statusCode != 200) {
-      throw Exception('Không thể cập nhật trạng thái: ${res.body}');
-    } else {
-      setState(() {
-        r.status = newStatus;
-      });
-      await saveStatusHistory(
-        requestId: r.id,
-        requestType: 'room',
-        oldStatus: r.status,
-        newStatus: newStatus,
-        changedBy: 'librarian123', // có thể lấy từ SharedPreferences nếu cần
-      );
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Request ${r.id} → ${newStatus.toUpperCase()}'),
-        backgroundColor: _badgeColor(newStatus),
-      ));
-    }
-  }
-
-  Future<void> saveStatusHistory({
-    required String requestId,
-    required String requestType,
-    required String oldStatus,
-    required String newStatus,
-    required String changedBy,
-    String reason = '',
-  }) async {
-    final url = Uri.parse('http://localhost:3002/api/requestStatusHistory');
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'requestId': requestId,
-        'requestType': requestType,
-        'oldStatus': oldStatus,
-        'newStatus': newStatus,
-        'changedBy': changedBy,
-        'reason': reason,
-      }),
-    );
-
-    if (response.statusCode != 201) {
-      throw Exception('Lỗi khi lưu lịch sử: ${response.body}');
-    }
   }
 }

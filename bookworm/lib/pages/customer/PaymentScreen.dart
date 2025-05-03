@@ -1,9 +1,5 @@
-
-import 'dart:ui';
-
-import 'package:flutter/cupertino.dart';
+// lib/pages/PaymentScreen.dart
 import 'package:flutter/material.dart';
-
 import '../../theme/AppColor.dart';
 
 class PaymentScreen extends StatefulWidget {
@@ -23,7 +19,6 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   bool _isPaying = false;
   String? _selectedMethod;
-  final TextEditingController _purposeController = TextEditingController();
 
   Widget _buildMethodCard(String label, IconData icon, String value) {
     final selected = _selectedMethod == value;
@@ -33,9 +28,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         width: 100,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primary.withOpacity(0.15)
-              : AppColors.white,
+          color:
+          selected ? AppColors.primary.withOpacity(0.15) : AppColors.white,
           border: Border.all(
             color: selected ? AppColors.primary : Colors.grey.shade300,
             width: selected ? 2 : 1,
@@ -45,17 +39,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon,
-                size: 32,
-                color: selected ? AppColors.primary : Colors.grey),
+            Icon(icon, size: 32, color: selected ? AppColors.primary : Colors.grey),
             const SizedBox(height: 8),
             Text(
               label,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                fontWeight:
-                selected ? FontWeight.bold : FontWeight.w500,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
                 color: selected ? AppColors.primary : Colors.black87,
               ),
             ),
@@ -74,18 +65,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
         backgroundColor: AppColors.primary,
         title: const Text(
           'Thanh toán online',
-          style: TextStyle(
-            color: AppColors.white,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: AppColors.white),
         ),
         iconTheme: const IconThemeData(color: AppColors.white),
-        elevation: 0,
       ),
-      body: SingleChildScrollView(
+      body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
               'Chọn phương thức thanh toán',
@@ -100,58 +86,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
               spacing: 12,
               runSpacing: 12,
               children: [
-                _buildMethodCard(
-                    'Ví Momo', Icons.account_balance_wallet, 'momo'),
-                _buildMethodCard(
-                    'Ngân hàng', Icons.account_balance, 'bank'),
-                _buildMethodCard(
-                    'Visa/Master', Icons.credit_card, 'visa'),
+                _buildMethodCard('Ví Momo', Icons.account_balance_wallet, 'momo'),
+                _buildMethodCard('Ngân hàng', Icons.account_balance, 'bank'),
+                _buildMethodCard('Visa/Master', Icons.credit_card, 'visa'),
               ],
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Lý do sử dụng phòng',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _purposeController,
-              maxLines: 2,
-              decoration: InputDecoration(
-                hintText: 'Nhập lý do...',
-                filled: true,
-                fillColor: AppColors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                    vertical: 12, horizontal: 16),
-              ),
             ),
             const SizedBox(height: 32),
             Center(
               child: Column(
                 children: [
-                  const Text(
-                    'Tổng thanh toán',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.black87,
-                    ),
-                  ),
+                  const Text('Tổng thanh toán', style: TextStyle(fontSize: 16)),
                   const SizedBox(height: 8),
                   Text(
                     '$totalK K VNĐ',
                     style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                    ),
+                        fontSize: 28, fontWeight: FontWeight.bold, color: Colors.green),
                   ),
                 ],
               ),
@@ -160,14 +109,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
             _isPaying
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton.icon(
-              onPressed: _selectedMethod == null ||
-                  _purposeController.text.trim().isEmpty
+              onPressed: _selectedMethod == null
                   ? null
                   : () async {
                 setState(() => _isPaying = true);
-                // Giả lập quá trình thanh toán
-                await Future.delayed(
-                    const Duration(seconds: 2));
+                await Future.delayed(const Duration(seconds: 2));
                 setState(() => _isPaying = false);
                 widget.onSuccess();
                 Navigator.pop(context);
@@ -179,25 +125,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 );
               },
               icon: const Icon(Icons.payment),
-              label: const Text(
-                'Thanh toán ngay',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              label: const Text('Thanh toán ngay'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.white,
-                padding:
-                const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Huỷ',
-                style: TextStyle(color: AppColors.inactive),
               ),
             ),
           ],

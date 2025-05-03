@@ -26,6 +26,8 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   List<BorrowRequest> _borrows = [];
   List<ReturnRequest> _returns = [];
   List<Bill> _bills = [];
+  String _selectedState = 'Nguyên vẹn';
+  final states = ['Nguyên vẹn', 'Hư hao nhẹ', 'Hư tổn đáng kể', 'Mất'];
 
   String? _borrowFilter;
   String? _returnFilter;
@@ -166,9 +168,15 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
           final due = borrow.dueDate ?? borrow.requestDate;
           final daysLate = r.returnDate.difference(due).inDays.clamp(0, 999);
           final overdueFee = daysLate * overdueFeePerDay;
-          final intactPct = int.tryParse(condCtl.text.replaceAll('%', '')) ?? 100;
-          final damagePct = (100 - intactPct).clamp(0, 100);
+          int damagePct;
+          switch (_selectedState) {
+            case 'Hư hao nhẹ':     damagePct = 10;  break;
+            case 'Hư tổn đáng kể': damagePct = 50;  break;
+            case 'Mất':             damagePct = 100; break;
+            default:                damagePct = 0;   // Nguyên vẹn
+          }
           final damageFee = damagePct * damageFeePerPercent;
+
           final total = overdueFee + damageFee;
 
           return AlertDialog(
@@ -177,14 +185,16 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
-                    controller: condCtl,
-                    decoration: const InputDecoration(
-                      labelText: 'Tỷ lệ nguyên vẹn (%)',
-                    ),
-                    onChanged: (_) => setSt(() {}),
-                  ),
-                  const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                value: _selectedState,
+                decoration: const InputDecoration(labelText: 'Tình trạng sách'),
+                items: states.map((s) =>
+                    DropdownMenuItem(value: s, child: Text(s))
+                ).toList(),
+                onChanged: (v) => setSt(() => _selectedState = v!),
+              ),
+
+                const SizedBox(height: 8),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.image),
                     label: const Text('Chọn ảnh'),
@@ -231,7 +241,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                       borrowRequestId: r.borrowRequestId,
                       overdueDays: daysLate,
                       overdueFee: overdueFee,
-                      damagePercentage: damagePct,
                       damageFee: damageFee,
                       totalFee: total,
                       amountReceived: paid,
