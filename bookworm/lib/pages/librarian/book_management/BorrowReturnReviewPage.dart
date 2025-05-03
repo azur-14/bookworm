@@ -7,6 +7,8 @@ import 'package:bookworm/theme/AppColor.dart';
 import 'package:bookworm/model/BorowRequest.dart';
 import 'package:bookworm/model/ReturnRequest.dart';
 import 'package:bookworm/model/Bill.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BorrowReturnReviewPage extends StatefulWidget {
   const BorrowReturnReviewPage({Key? key}) : super(key: key);
@@ -27,6 +29,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
 
   String? _borrowFilter;
   String? _returnFilter;
+  String? _userId;
 
   // Phí cố định
   static const int overdueFeePerDay = 10000;    // 10k VND/ngày
@@ -36,41 +39,16 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 3, vsync: this);
+    _loadUserPrefs(); // ✅ thêm dòng này
     _loadMocks();
     _searchCtl.addListener(() => setState(() {}));
   }
 
   void _loadMocks() {
     final now = DateTime.now();
-    _borrows = [
-      BorrowRequest(
-        id: 'b1',
-        userId: 'alice',
-        bookCopyId: 'bc1',
-        bookId: 'Clean Code',
-        status: 'pending',
-        requestDate: now.subtract(const Duration(days: 5)),
-        dueDate: now.add(const Duration(days: 2)),
-      ),
-      BorrowRequest(
-        id: 'b2',
-        userId: 'bob',
-        bookCopyId: 'bc2',
-        bookId: 'Flutter in Action',
-        status: 'approved',
-        requestDate: now.subtract(const Duration(days: 10)),
-        receiveDate: now.subtract(const Duration(days: 9)),
-        dueDate: now.add(const Duration(days: 1)),
-      ),
-      BorrowRequest(
-        id: 'b3',
-        userId: 'carol',
-        bookCopyId: 'bc3',
-        bookId: 'Design Patterns',
-        status: 'cancelled',
-        requestDate: now.subtract(const Duration(days: 3)),
-      ),
-    ];
+    fetchAllBorrowRequests().then((list) {
+      setState(() => _borrows = list);
+    });
     _returns = [
       ReturnRequest(
         id: 'r1',
@@ -109,26 +87,49 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     }
   }
 
-  // ---------------- Borrow actions ----------------
-
-  void _updateBorrow(BorrowRequest b, String newStatus) {
+  Future<void> _loadUserPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
     setState(() {
-      b.status = newStatus;
-      if (newStatus == 'approved') {
-        _returns.add(ReturnRequest(
-          id: 'r_${b.id}_${DateTime.now().millisecondsSinceEpoch}',
-          borrowRequestId: b.id!,
-          status: 'processing',
-          returnDate: DateTime.now(),
-          returnImageBase64: null,
-          condition: null,
-        ));
-      }
+      _userId = prefs.getString('userId'); // ✅ thêm dòng này
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Borrow ${b.id} → ${newStatus.toUpperCase()}'),
-      backgroundColor: _statusColor(newStatus),
-    ));
+  }
+
+  // ---------------- Borrow actions ----------------
+  Future<void> _updateBorrow(BorrowRequest b, String newStatus, {String reason = ''}) async {
+    final response = await http.put(
+      Uri.parse('http://localhost:3002/api/borrowRequest/${b.id}/status'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'newStatus': newStatus,
+        'changedBy': _userId,
+        'reason': reason,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      setState(() {
+        b.status = newStatus;
+        if (newStatus == 'approved') {
+          _returns.add(ReturnRequest(
+            id: 'r_${b.id}_${DateTime.now().millisecondsSinceEpoch}',
+            borrowRequestId: b.id!,
+            status: 'processing',
+            returnDate: DateTime.now(),
+            returnImageBase64: null,
+            condition: null,
+          ));
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Đã cập nhật trạng thái mượn: $newStatus'),
+        backgroundColor: _statusColor(newStatus),
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Lỗi cập nhật trạng thái'),
+        backgroundColor: Colors.red,
+      ));
+    }
   }
 
   Future<void> _showCancelDialog(BorrowRequest b) async {
@@ -144,9 +145,9 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
           ElevatedButton(
-            onPressed: () {
-              setState(() => b.status = 'cancelled');
+            onPressed: () async {
               Navigator.pop(ctx);
+              await _updateBorrow(b, 'cancelled', reason: ctl.text.trim());
             },
             child: const Text('Xác nhận'),
           ),
@@ -288,22 +289,59 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
 
   // --------------- Filtering ---------------
 
+  int _statusOrder(String st) {
+    switch (st) {
+      case 'pending': return 0;
+      case 'approved': return 1;
+      case 'rejected': return 2;
+      case 'cancelled': return 3;
+      default: return 4;
+    }
+  }
+
+  int _returnStatusOrder(String st) {
+    switch (st) {
+      case 'processing': return 0;
+      case 'overdue': return 1;
+      case 'completed': return 2;
+      default: return 3;
+    }
+  }
+
   List<BorrowRequest> get _filteredBorrows {
     final q = _searchCtl.text.toLowerCase();
-    return _borrows.where((b) {
+    final filtered = _borrows.where((b) {
       final bySearch = b.userId.toLowerCase().contains(q) || b.bookId.toLowerCase().contains(q);
       final byFilter = _borrowFilter == null || b.status == _borrowFilter;
       return bySearch && byFilter;
     }).toList();
+
+    filtered.sort((a, b) {
+      final cmpStatus = _statusOrder(a.status).compareTo(_statusOrder(b.status));
+      return cmpStatus != 0
+          ? cmpStatus
+          : b.requestDate.compareTo(a.requestDate); // mới hơn lên trước
+    });
+
+    return filtered;
   }
 
   List<ReturnRequest> get _filteredReturns {
     final q = _searchCtl.text.toLowerCase();
-    return _returns.where((r) {
+    final filtered = _returns.where((r) {
       final bySearch = r.borrowRequestId.toLowerCase().contains(q);
       final byFilter = _returnFilter == null || r.status == _returnFilter;
       return bySearch && byFilter;
     }).toList();
+
+    filtered.sort((a, b) {
+      final cmpStatus = _returnStatusOrder(a.status).compareTo(_returnStatusOrder(b.status));
+      return cmpStatus != 0
+          ? cmpStatus
+          : b.returnDate.compareTo(a.returnDate); // mới hơn lên trước
+    });
+
+    return filtered;
   }
 
   // --------------- History ---------------
@@ -578,5 +616,17 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
         ],
       ),
     );
+  }
+
+  Future<List<BorrowRequest>> fetchAllBorrowRequests() async {
+    final url = Uri.parse('http://localhost:3002/api/borrowRequest');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((item) => BorrowRequest.fromJson(item)).toList();
+    } else {
+      throw Exception('Lỗi khi tải danh sách BorrowRequest: ${response.body}');
+    }
   }
 }

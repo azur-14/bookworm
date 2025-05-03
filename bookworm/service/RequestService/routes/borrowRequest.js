@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 const BorrowRequest = require('../models/BorrowRequest');
+const RequestStatusHistory = require('../models/RequestStatusHistory');
 const { v4: uuidv4 } = require('uuid');
 
 // gửi yêu cầu mượn sách
@@ -67,6 +68,48 @@ router.get('/user/:userId', async (req, res) => {
     res.json(requests);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch borrow requests' });
+  }
+});
+
+// get tất cả BorrowRequest
+router.get('/', async (req, res) => {
+  try {
+    const requests = await BorrowRequest.find().sort({ requestDate: -1 });
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi khi tải danh sách yêu cầu mượn sách', detail: err.message });
+  }
+});
+
+//update trạng thái theo id
+router.put('/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { newStatus, changedBy, reason } = req.body;
+
+  try {
+    const request = await BorrowRequest.findOne({ id: id });
+    if (!request) {
+      return res.status(404).json({ message: 'Borrow request not found' });
+    }
+
+    const oldStatus = request.status;
+    request.status = newStatus;
+    await request.save();
+
+    const history = new RequestStatusHistory({
+      requestId: id,
+      requestType: 'borrow',
+      oldStatus,
+      newStatus,
+      changedBy,
+      reason: reason || ''
+    });
+    await history.save();
+
+    res.json({ message: 'Status updated and history recorded' });
+  } catch (err) {
+    console.error('Status update error:', err);
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
