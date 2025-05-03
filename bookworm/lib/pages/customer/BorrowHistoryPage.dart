@@ -88,7 +88,7 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
       List<BorrowRequest> requests,
       List<BookItem> items,
       ) {
-    final ids = requests.map((r) => r.bookCopyId).toSet(); // giữ nguyên string
+    final ids = requests.map((r) => r.bookCopyId).toSet();
     return items.where((item) => ids.contains(item.id.toString())).toList();
   }
 
@@ -101,13 +101,22 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
       if (ret.status == 'processing') return 'Đang trả';
       if (ret.status == 'overdue') return 'Trả quá hạn';
       if (ret.status == 'completed') {
-        if (ret.returnImage.isNotEmpty) return 'Hư hao';
-        if (ret.returnDate.isAfter(r.dueDate)) return 'Trả quá hạn';
+        // dùng returnImageBase64 thay vì returnImage
+        if (ret.returnImageBase64 != null &&
+            ret.returnImageBase64!.isNotEmpty) {
+          return 'Hư hao';
+        }
+
+        if (r.dueDate != null && ret.returnDate != null &&
+            ret.returnDate!.isAfter(r.dueDate!)) {
+          return 'Trả quá hạn';
+        }
         return 'Đã trả';
       }
     }
     return 'Không rõ';
   }
+
 
   BookItem? getCopy(String copyId) {
     try {
@@ -172,15 +181,21 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
           children: [
             Text('Tác giả: ${b.author}'),
             Text('Ngày mượn: ${formatDate(r.requestDate)}'),
-            Text('Hạn trả: ${formatDate(r.dueDate)}'),
-            if (ret != null) Text('Trả: ${formatDate(ret.returnDate)}'),
+            Text('Hạn trả: ${formatDate(r.dueDate!)}'),
+            if (ret != null) Text('Trả: ${formatDate(ret.returnDate!)}'),
             Text('Trạng thái: $status', style: TextStyle(color: getStatusColor(status))),
           ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          )
+        ],
       ),
     );
   }
+
   List<BorrowRequest> getByCombinedStatus(String status) {
     return borrowRequests.where((r) {
       final ret = getReturnStatus(r.id ?? '');
@@ -212,19 +227,15 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
             onTap: () => _showDetail(r, book, combined, ret),
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: SizedBox(
-                width: 50,
-                height: 70,
-                child: _bookImage(book)
-              ),
+              child: SizedBox(width: 50, height: 70, child: _bookImage(book)),
             ),
             title: Text(book.title),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Mượn: ${formatDate(r.requestDate)}'),
-                Text('Hạn: ${formatDate(r.dueDate)}'),
-                if (ret != null) Text('Trả: ${formatDate(ret.returnDate)}'),
+                Text('Hạn: ${formatDate(r.dueDate!)}'),
+                if (ret != null) Text('Trả: ${formatDate(ret.returnDate!)}'),
               ],
             ),
             trailing: Column(
