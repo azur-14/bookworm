@@ -9,15 +9,6 @@ class BorrowRequest {
   DateTime? dueDate;
   DateTime? returnDate;
 
-  // Cancellation & approval info
-  final String? userCancelReason;
-  String? librarianCancelReason;
-  String? cancelledBy;
-  DateTime? cancelledDate;
-
-  String? approvedBy;
-  DateTime? approvedDate;
-
   BorrowRequest({
     this.id,
     required this.userId,
@@ -28,12 +19,6 @@ class BorrowRequest {
     this.receiveDate,
     this.dueDate,
     this.returnDate,
-    this.userCancelReason,
-    this.librarianCancelReason,
-    this.cancelledBy,
-    this.cancelledDate,
-    this.approvedBy,
-    this.approvedDate,
   }) : requestDate = requestDate ?? DateTime.now();
 
   factory BorrowRequest.fromJson(Map<String, dynamic> json) {
@@ -53,16 +38,6 @@ class BorrowRequest {
       returnDate: json['return_date'] != null
           ? DateTime.parse(json['return_date'] as String)
           : null,
-      userCancelReason: json['user_cancel_reason'] as String?,
-      librarianCancelReason: json['librarian_cancel_reason'] as String?,
-      cancelledBy: json['cancelled_by'] as String?,
-      cancelledDate: json['cancelled_date'] != null
-          ? DateTime.parse(json['cancelled_date'] as String)
-          : null,
-      approvedBy: json['approved_by'] as String?,
-      approvedDate: json['approved_date'] != null
-          ? DateTime.parse(json['approved_date'] as String)
-          : null,
     );
   }
 
@@ -76,11 +51,5 @@ class BorrowRequest {
     'receive_date': receiveDate?.toIso8601String(),
     'due_date': dueDate?.toIso8601String(),
     'return_date': returnDate?.toIso8601String(),
-    'user_cancel_reason': userCancelReason,
-    'librarian_cancel_reason': librarianCancelReason,
-    'cancelled_by': cancelledBy,
-    'cancelled_date': cancelledDate?.toIso8601String(),
-    'approved_by': approvedBy,
-    'approved_date': approvedDate?.toIso8601String(),
   };
 }
