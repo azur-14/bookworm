@@ -8,7 +8,7 @@ const roomBookingRequestSchema = new mongoose.Schema({
   end_time: { type: Date, required: true },
   status: { type: String, enum: ['pending', 'approved', 'rejected', 'cancelled'], default: 'pending' },
   purpose: { type: String, required: true },
-  request_time: { type: String, required: true }
+  request_time: { type: Date, required: true }
 });
 
 module.exports = mongoose.model('RoomBookingRequest', roomBookingRequestSchema);
