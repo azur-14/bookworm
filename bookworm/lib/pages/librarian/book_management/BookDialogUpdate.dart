@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 import 'package:bookworm/model/Book.dart';
 import 'package:bookworm/model/Category.dart';
-import 'package:http/http.dart' as http;
 
 class BookDialogUpdate extends StatefulWidget {
   final Book book;
@@ -27,9 +27,8 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
   late TextEditingController yearCtl;
   late TextEditingController descCtl;
   late TextEditingController priceCtl;
-
-  late int newTotal;
-  late int newAvail;
+  late TextEditingController totalCtl;
+  late TextEditingController availCtl;
 
   Uint8List? imageBytes;
 
@@ -42,15 +41,27 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
     yearCtl = TextEditingController(text: widget.book.publishYear.toString());
     descCtl = TextEditingController(text: widget.book.description ?? '');
     priceCtl = TextEditingController(text: widget.book.price.toString());
-
-    newTotal = widget.book.totalQuantity;
-    newAvail = widget.book.availableQuantity;
+    totalCtl = TextEditingController(text: widget.book.totalQuantity.toString());
+    availCtl = TextEditingController(text: widget.book.availableQuantity.toString());
 
     if (widget.book.image.isNotEmpty) {
       try {
         imageBytes = base64Decode(widget.book.image);
       } catch (_) {}
     }
+  }
+
+  @override
+  void dispose() {
+    titleCtl.dispose();
+    authorCtl.dispose();
+    pubCtl.dispose();
+    yearCtl.dispose();
+    descCtl.dispose();
+    priceCtl.dispose();
+    totalCtl.dispose();
+    availCtl.dispose();
+    super.dispose();
   }
 
   @override
@@ -67,8 +78,22 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
             _input(yearCtl, 'Publish Year', number: true),
             _input(priceCtl, 'Price', number: true),
             _dropdownCategory(),
-            _quantityEditor('Total Quantity', true),
-            _quantityEditor('Available Quantity', false),
+            _numberInput('Total Quantity', totalCtl, onChanged: (v) {
+              // ensure available ≤ total
+              final total = v < 0 ? 0 : v;
+              totalCtl.text = total.toString();
+              final avail = int.tryParse(availCtl.text) ?? 0;
+              if (avail > total) {
+                availCtl.text = total.toString();
+              }
+            }),
+            _numberInput('Available Quantity', availCtl, onChanged: (v) {
+              final total = int.tryParse(totalCtl.text) ?? widget.book.totalQuantity;
+              int avail = v;
+              if (avail < 0) avail = 0;
+              if (avail > total) avail = total;
+              availCtl.text = avail.toString();
+            }),
             _input(descCtl, 'Description'),
             _pickImageButton(),
           ],
@@ -95,6 +120,21 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
     );
   }
 
+  Widget _numberInput(String label, TextEditingController ctl, {required void Function(int) onChanged}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: TextField(
+        controller: ctl,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+        onChanged: (val) {
+          final v = int.tryParse(val) ?? 0;
+          onChanged(v);
+        },
+      ),
+    );
+  }
+
   Widget _dropdownCategory() {
     final cat = widget.categories.firstWhere((c) => c.id == widget.book.categoryId);
     return Padding(
@@ -104,36 +144,6 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
         decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
         items: widget.categories.map((c) => DropdownMenuItem(value: c, child: Text(c.name))).toList(),
         onChanged: (_) {},
-      ),
-    );
-  }
-
-  Widget _quantityEditor(String label, bool isTotal) {
-    int current = isTotal ? newTotal : newAvail;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline),
-            onPressed: (isTotal && newTotal > widget.book.totalQuantity) || (!isTotal && current > 0)
-                ? () => setState(() {
-              if (isTotal) newTotal--;
-              else newAvail--;
-            })
-                : null,
-          ),
-          Text('$current'),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () => setState(() {
-              if (isTotal) newTotal++;
-              else if (newAvail < newTotal) newAvail++;
-            }),
-          ),
-        ],
       ),
     );
   }
@@ -169,48 +179,51 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
   }
 
   Future<void> _handleUpdateBook() async {
-    try {
-      // Validate dữ liệu
-      if (titleCtl.text.trim().isEmpty ||
-          authorCtl.text.trim().isEmpty ||
-          pubCtl.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vui lòng nhập đủ Title, Author và Publisher')),
-        );
-        return;
-      }
-
-      final year = int.tryParse(yearCtl.text);
-      if (year == null || year < 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Năm xuất bản phải là số hợp lệ')),
-        );
-        return;
-      }
-
-      final price = double.tryParse(priceCtl.text);
-      if (price == null || price < 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Giá sách phải là số hợp lệ')),
-        );
-        return;
-      }
-
-      final updated = Book(
-        id: widget.book.id,
-        image: imageBytes != null ? base64Encode(imageBytes!) : widget.book.image,
-        title: titleCtl.text.trim(),
-        author: authorCtl.text.trim(),
-        publisher: pubCtl.text.trim(),
-        publishYear: year,
-        price: price,
-        categoryId: widget.book.categoryId,
-        totalQuantity: newTotal,
-        availableQuantity: newAvail,
-        description: descCtl.text.trim(),
-        timeCreate: widget.book.timeCreate,
+    // validate required fields
+    if (titleCtl.text.trim().isEmpty ||
+        authorCtl.text.trim().isEmpty ||
+        pubCtl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập đủ Title, Author và Publisher')),
       );
+      return;
+    }
 
+    final year = int.tryParse(yearCtl.text);
+    if (year == null || year < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Năm xuất bản phải là số hợp lệ')),
+      );
+      return;
+    }
+
+    final price = double.tryParse(priceCtl.text);
+    if (price == null || price < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Giá sách phải là số hợp lệ')),
+      );
+      return;
+    }
+
+    final totalQty = int.tryParse(totalCtl.text) ?? widget.book.totalQuantity;
+    final availQty = int.tryParse(availCtl.text)?.clamp(0, totalQty) ?? totalQty;
+
+    final updated = Book(
+      id: widget.book.id,
+      image: imageBytes != null ? base64Encode(imageBytes!) : widget.book.image,
+      title: titleCtl.text.trim(),
+      author: authorCtl.text.trim(),
+      publisher: pubCtl.text.trim(),
+      publishYear: year,
+      price: price,
+      categoryId: widget.book.categoryId,
+      totalQuantity: totalQty,
+      availableQuantity: availQty,
+      description: descCtl.text.trim(),
+      timeCreate: widget.book.timeCreate,
+    );
+
+    try {
       await updateBookOnServer(updated);
       Navigator.pop(context, true);
     } catch (e) {
