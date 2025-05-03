@@ -3,7 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:bookworm/theme/AppColor.dart';
 import 'package:bookworm/model/RoomBookingRequest.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class BookingReviewPage extends StatefulWidget {
   @override
@@ -26,44 +27,14 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   void initState() {
     super.initState();
     _loadRequests();
+    fetchRoomBookingRequests().then((list) {
+      setState(() => _allRequests = list);
+    });
     _searchCtl.addListener(() => setState(() {}));
   }
 
   void _loadRequests() {
     final now = DateTime.now();
-    _allRequests = [
-      // Mock data
-      RoomBookingRequest(
-        id: '1',
-        userId: 'userA',
-        roomId: 'Phòng A',
-        startTime: now.subtract(Duration(hours: 1)),
-        endTime: now.add(Duration(hours: 1)),
-        purpose: 'Họp nhóm',
-        status: 'approved',
-        requestTime: now.subtract(Duration(days: 1)),
-      ),
-      RoomBookingRequest(
-        id: '2',
-        userId: 'userB',
-        roomId: 'Phòng A',
-        startTime: now.add(Duration(minutes: 30)),
-        endTime: now.add(Duration(hours: 2)),
-        purpose: 'Thảo luận',
-        status: 'pending',
-        requestTime: now,
-      ),
-      RoomBookingRequest(
-        id: '3',
-        userId: 'userC',
-        roomId: 'Phòng B',
-        startTime: now.subtract(Duration(days: 2)),
-        endTime: now.subtract(Duration(days: 2)).add(Duration(hours: 2)),
-        purpose: 'Nghiên cứu',
-        status: 'approved',
-        requestTime: now.subtract(Duration(days: 3)),
-      ),
-    ];
   }
 
   List<RoomBookingRequest> get _pending =>
@@ -71,9 +42,9 @@ class _BookingReviewPageState extends State<BookingReviewPage>
 
   List<RoomBookingRequest> get _ongoing {
     final now = DateTime.now();
+    print(now);
     return _allRequests.where((r) =>
     r.status == 'approved' &&
-        r.startTime.isBefore(now) &&
         r.endTime.isAfter(now)).toList();
   }
 
@@ -82,7 +53,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     final now = DateTime.now();
     return _allRequests.where((r) =>
     // đã approve và kết thúc trước giờ hiện tại
-    (r.status == 'approved' && r.endTime.isBefore(now))
+    (r.status == 'approved')
         // hoặc đã bị reject (bất kỳ lúc nào)
         || r.status == 'rejected'
     ).toList();
@@ -132,15 +103,6 @@ class _BookingReviewPageState extends State<BookingReviewPage>
       case 'pending':  return AppColors.primary;
       default:         return Colors.grey;
     }
-  }
-
-  Future<void> _updateStatus(RoomBookingRequest r, String newStatus) async {
-    // TODO: gọi API cập nhật ở đây
-    setState(() => r.status = newStatus);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Request ${r.id} → ${newStatus.toUpperCase()}'),
-      backgroundColor: _badgeColor(newStatus),
-    ));
   }
 
   Widget _buildRequestCard(RoomBookingRequest r) {
@@ -501,5 +463,74 @@ class _BookingReviewPageState extends State<BookingReviewPage>
         ]),
       ),
     );
+  }
+
+
+  Future<List<RoomBookingRequest>> fetchRoomBookingRequests() async {
+    final url = Uri.parse('http://localhost:3002/api/roomBookingRequest'); // đổi URL nếu là borrow
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((e) => RoomBookingRequest.fromJson(e)).toList();
+    } else {
+      throw Exception('Lỗi khi tải danh sách yêu cầu mượn phòng');
+    }
+  }
+
+  Future<void> _updateStatus(RoomBookingRequest r, String newStatus) async {
+    final requestId = r.id;
+    final url = Uri.parse('http://localhost:3002/api/roomBookingRequest/$requestId');
+    final res = await http.put(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'status': newStatus}),
+    );
+
+    if (res.statusCode != 200) {
+      throw Exception('Không thể cập nhật trạng thái: ${res.body}');
+    } else {
+      setState(() {
+        r.status = newStatus;
+      });
+      await saveStatusHistory(
+        requestId: r.id,
+        requestType: 'room',
+        oldStatus: r.status,
+        newStatus: newStatus,
+        changedBy: 'librarian123', // có thể lấy từ SharedPreferences nếu cần
+      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Request ${r.id} → ${newStatus.toUpperCase()}'),
+        backgroundColor: _badgeColor(newStatus),
+      ));
+    }
+  }
+
+  Future<void> saveStatusHistory({
+    required String requestId,
+    required String requestType,
+    required String oldStatus,
+    required String newStatus,
+    required String changedBy,
+    String reason = '',
+  }) async {
+    final url = Uri.parse('http://localhost:3002/api/requestStatusHistory');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'requestId': requestId,
+        'requestType': requestType,
+        'oldStatus': oldStatus,
+        'newStatus': newStatus,
+        'changedBy': changedBy,
+        'reason': reason,
+      }),
+    );
+
+    if (response.statusCode != 201) {
+      throw Exception('Lỗi khi lưu lịch sử: ${response.body}');
+    }
   }
 }

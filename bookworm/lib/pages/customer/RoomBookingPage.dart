@@ -88,7 +88,6 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
     );
 
     try {
-      await sendBookingRequest(newRequest); // gửi về backend
       setState(() {
         _bookingMap.putIfAbsent(room.id, () => []).add(newRequest);
       });
@@ -279,13 +278,25 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
                             ElevatedButton(
                               onPressed: _selectedSlots.isEmpty
                                   ? null
-                                  : () {
-                                final sorted = _selectedSlots.toList()
-                                  ..sort();
-                                final start = sorted.first;
-                                final end = sorted.last.add(Duration(hours: 1));
-                                _saveBooking(room, start, end);
-                                Navigator.pop(ctx);
+                                  : () async {
+                                final prefs = await SharedPreferences.getInstance();
+                                final userId = prefs.getString('userId') ?? 'demoUser';
+                                final room = _activeRoom!;
+                                final requestTime = DateTime.now();
+                                final purpose = _purposeController.text.trim();
+                                try {
+                                  await sendBookingRequest(
+                                    userId: userId,
+                                    roomId: room.id,
+                                    purpose: purpose,
+                                    requestTime: requestTime,
+                                    selectedSlots: _selectedSlots.toList(),
+                                  );
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đặt phòng thành công!')));
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+                                }
                               },
                               child: const Text('Đặt các giờ đã chọn'),
                             ),
@@ -416,19 +427,46 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
     }
   }
 
-  Future<void> sendBookingRequest(RoomBookingRequest request) async {
+  Future<void> sendBookingRequest({
+    required String userId,
+    required String roomId,
+    required String purpose,
+    required DateTime requestTime,
+    required List<DateTime> selectedSlots,
+  }) async {
+    selectedSlots.sort();
+    final merged = <Map<String, String>>[];
+    DateTime start = selectedSlots.first;
+    DateTime end = start.add(const Duration(hours: 1));
+
+    for (int i = 1; i < selectedSlots.length; i++) {
+      final slot = selectedSlots[i];
+      if (slot == end) {
+        end = end.add(const Duration(hours: 1));
+      } else {
+        merged.add({
+          'start_time': start.toIso8601String(),
+          'end_time': end.toIso8601String(),
+        });
+        start = slot;
+        end = slot.add(const Duration(hours: 1));
+      }
+    }
+    merged.add({
+      'start_time': start.toIso8601String(),
+      'end_time': end.toIso8601String(),
+    });
+
     final url = Uri.parse('http://localhost:3002/api/roomBookingRequest');
     final res = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
       body: json.encode({
-        'user_id': request.userId,
-        'room_id': request.roomId,
-        'start_time': request.startTime.toIso8601String(),
-        'end_time': request.endTime.toIso8601String(),
-        'status': request.status,
-        'purpose': request.purpose,
-        'request_time': request.requestTime.toIso8601String(),
+        'user_id': userId,
+        'room_id': roomId,
+        'purpose': purpose,
+        'request_time': requestTime.toIso8601String(),
+        'slots': merged,
       }),
     );
 
