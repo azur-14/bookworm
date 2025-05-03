@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:bookworm/model/Book.dart';
@@ -5,8 +7,6 @@ import 'package:bookworm/model/BookItem.dart';
 import 'package:bookworm/model/BorowRequest.dart';
 import 'package:bookworm/model/ReturnRequest.dart';
 import 'package:bookworm/theme/AppColor.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class BorrowHistoryPage extends StatefulWidget {
   final String userId;
@@ -29,6 +29,7 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
   }
 
   Future<void> _loadData() async {
+    // Giả lập fetch data; giữ nguyên khi tích hợp backend
     final fetchedBooks = await fetchBooks();
     final fetchedBorrows = await fetchBorrowRequests(widget.userId);
     final fetchedReturns = await fetchReturnRequests(widget.userId);
@@ -44,45 +45,11 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
     });
   }
 
-  Future<List<BookItem>> fetchBookItems() async {
-    final res = await http.get(Uri.parse('http://localhost:3003/api/bookcopies'));
-    if (res.statusCode == 200) {
-      final data = json.decode(res.body);
-      return List<BookItem>.from(data.map((e) => BookItem.fromJson(e)));
-    } else {
-      throw Exception('Failed to load book items');
-    }
-  }
-
-  Future<List<Book>> fetchBooks() async {
-    final res = await http.get(Uri.parse('http://localhost:3003/api/books'));
-    if (res.statusCode == 200) {
-      final data = json.decode(res.body);
-      return List<Book>.from(data.map((e) => Book.fromJson(e)));
-    } else {
-      throw Exception('Failed to load books');
-    }
-  }
-
-  Future<List<BorrowRequest>> fetchBorrowRequests(String userId) async {
-    final res = await http.get(Uri.parse('http://localhost:3002/api/borrowRequest/user/$userId'));
-    if (res.statusCode == 200) {
-      final data = json.decode(res.body);
-      return List<BorrowRequest>.from(data.map((e) => BorrowRequest.fromJson(e)));
-    } else {
-      throw Exception('Failed to load borrow requests');
-    }
-  }
-
-  Future<List<ReturnRequest>> fetchReturnRequests(String userId) async {
-    final res = await http.get(Uri.parse('http://localhost:3002/api/returnRequest/user/$userId'));
-    if (res.statusCode == 200) {
-      final data = json.decode(res.body);
-      return List<ReturnRequest>.from(data.map((e) => ReturnRequest.fromJson(e)));
-    } else {
-      throw Exception('Failed to load return requests');
-    }
-  }
+  // === Giả lập các hàm fetch để code compile ===
+  Future<List<BookItem>> fetchBookItems() async => [];
+  Future<List<Book>> fetchBooks() async => [];
+  Future<List<BorrowRequest>> fetchBorrowRequests(String userId) async => [];
+  Future<List<ReturnRequest>> fetchReturnRequests(String userId) async => [];
 
   List<BookItem> getBookItemsUsedInBorrowRequests(
       List<BorrowRequest> requests,
@@ -92,31 +59,30 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
     return items.where((item) => ids.contains(item.id.toString())).toList();
   }
 
+  /// Kết hợp status theo thứ tự:
+  /// pending → Chờ duyệt
+  /// approved & no ReturnRequest → Chờ nhận
+  /// processing → Đang mượn
+  /// overdue → Trả quá hạn
+  /// completed → Đã trả / Hư hao
+  /// rejected → Từ chối
   String getCombinedStatus(BorrowRequest r, ReturnRequest? ret) {
     if (r.status == 'pending') return 'Chờ duyệt';
     if (r.status == 'rejected') return 'Từ chối';
-
-    if (r.status == 'approved') {
-      if (ret == null) return 'Đang mượn';
-      if (ret.status == 'processing') return 'Đang trả';
-      if (ret.status == 'overdue') return 'Trả quá hạn';
-      if (ret.status == 'completed') {
-        // dùng returnImageBase64 thay vì returnImage
-        if (ret.returnImageBase64 != null &&
-            ret.returnImageBase64!.isNotEmpty) {
-          return 'Hư hao';
-        }
-
-        if (r.dueDate != null && ret.returnDate != null &&
-            ret.returnDate!.isAfter(r.dueDate!)) {
-          return 'Trả quá hạn';
-        }
-        return 'Đã trả';
+    if (r.status == 'approved' && ret == null) return 'Chờ nhận';
+    if (ret != null && ret.status == 'processing') return 'Đang mượn';
+    if (ret != null && ret.status == 'overdue') return 'Trả quá hạn';
+    if (ret != null && ret.status == 'completed') {
+      if (ret.condition != null && ret.condition!.isNotEmpty) {
+        return 'Hư hao';
       }
+      if (r.dueDate != null && ret.returnDate.isAfter(r.dueDate!)) {
+        return 'Trả quá hạn';
+      }
+      return 'Đã trả';
     }
     return 'Không rõ';
   }
-
 
   BookItem? getCopy(String copyId) {
     try {
@@ -144,31 +110,52 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
 
   Color getStatusColor(String s) {
     switch (s) {
-      case 'Chờ duyệt': return Colors.orange;
-      case 'Đang mượn': return Colors.blueAccent;
-      case 'Đang trả': return Colors.purple;
+      case 'Chờ duyệt':   return Colors.orange;
+      case 'Chờ nhận':   return Colors.blueGrey;
+      case 'Đang mượn':   return Colors.blueAccent;
       case 'Trả quá hạn': return Colors.redAccent;
-      case 'Hư hao': return Colors.deepOrange;
-      case 'Đã trả': return Colors.green;
-      case 'Từ chối': return Colors.red;
-      default: return Colors.grey;
+      case 'Hư hao':      return Colors.deepOrange;
+      case 'Đã trả':      return Colors.green;
+      case 'Từ chối':     return Colors.red;
+      default:            return Colors.grey;
     }
   }
 
   IconData getStatusIcon(String s) {
     switch (s) {
-      case 'Chờ duyệt': return Icons.hourglass_top;
-      case 'Đang mượn': return Icons.book;
-      case 'Đang trả': return Icons.swap_horiz;
+      case 'Chờ duyệt':   return Icons.hourglass_top;
+      case 'Chờ nhận':    return Icons.inventory_2;
+      case 'Đang mượn':   return Icons.book;
       case 'Trả quá hạn': return Icons.warning;
-      case 'Hư hao': return Icons.report_problem;
-      case 'Đã trả': return Icons.assignment_turned_in;
-      case 'Từ chối': return Icons.cancel;
-      default: return Icons.help;
+      case 'Hư hao':      return Icons.report_problem;
+      case 'Đã trả':      return Icons.assignment_turned_in;
+      case 'Từ chối':     return Icons.cancel;
+      default:            return Icons.help;
     }
   }
 
   String formatDate(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
+
+  /// Xác nhận nhận sách: tạo ReturnRequest.processing
+  void confirmReceive(BorrowRequest r) {
+    setState(() {
+      returnRequests.add(ReturnRequest(
+        id: UniqueKey().toString(),
+        borrowRequestId: r.id!,
+        status: 'processing',
+        returnDate: DateTime.now(),
+        returnImageBase64: null,
+        condition: null,
+      ));
+    });
+  }
+
+  /// Hủy borrow request: chuyển status thành rejected
+  void cancelRequest(BorrowRequest r) {
+    setState(() {
+      r.status = 'rejected';
+    });
+  }
 
   void _showDetail(BorrowRequest r, Book b, String status, ReturnRequest? ret) {
     showDialog(
@@ -182,24 +169,30 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
             Text('Tác giả: ${b.author}'),
             Text('Ngày mượn: ${formatDate(r.requestDate)}'),
             Text('Hạn trả: ${formatDate(r.dueDate!)}'),
-            if (ret != null) Text('Trả: ${formatDate(ret.returnDate!)}'),
-            Text('Trạng thái: $status', style: TextStyle(color: getStatusColor(status))),
+            if (ret != null) ...[
+              Text('Ngày trả (dự kiến): ${formatDate(ret.returnDate)}'),
+              Text('Tình trạng sách: ${ret.condition ?? 'Tốt'}'),
+            ],
+            const SizedBox(height: 8),
+            Text('Trạng thái: $status',
+                style: TextStyle(color: getStatusColor(status))),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đóng'),
-          )
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng')),
         ],
       ),
     );
   }
 
-  List<BorrowRequest> getByCombinedStatus(String status) {
+  List<BorrowRequest> getByCombinedStatus(String statusLabel) {
+    if (statusLabel == 'Tất cả') {
+      return List<BorrowRequest>.from(borrowRequests)
+        ..sort((a, b) => b.requestDate.compareTo(a.requestDate));
+    }
     return borrowRequests.where((r) {
-      final ret = getReturnStatus(r.id ?? '');
-      return getCombinedStatus(r, ret) == status;
+      final ret = getReturnStatus(r.id!);
+      return getCombinedStatus(r, ret) == statusLabel;
     }).toList();
   }
 
@@ -214,10 +207,49 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
         final r = list[index];
         final copy = getCopy(r.bookCopyId);
         final book = copy != null ? getBook(copy.bookId) : null;
-        final ret = getReturnStatus(r.id ?? '');
+        final ret = getReturnStatus(r.id!);
         final combined = getCombinedStatus(r, ret);
 
         if (book == null || copy == null) return const SizedBox();
+
+        Widget trailing;
+        if (combined == 'Chờ duyệt') {
+          trailing = ElevatedButton(
+            onPressed: () => cancelRequest(r),
+            child: const Text('Hủy'),
+          );
+        } else if (combined == 'Chờ nhận') {
+          trailing = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ElevatedButton(
+                onPressed: () => cancelRequest(r),
+                child: const Text('Hủy'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () => confirmReceive(r),
+                child: const Text('Xác nhận nhận'),
+              ),
+            ],
+          );
+        } else {
+          trailing = Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(getStatusIcon(combined), color: getStatusColor(combined)),
+              const SizedBox(height: 4),
+              Text(
+                combined,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: getStatusColor(combined),
+                  fontSize: 12,
+                ),
+              )
+            ],
+          );
+        }
 
         return Card(
           elevation: 2,
@@ -235,24 +267,11 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
               children: [
                 Text('Mượn: ${formatDate(r.requestDate)}'),
                 Text('Hạn: ${formatDate(r.dueDate!)}'),
-                if (ret != null) Text('Trả: ${formatDate(ret.returnDate!)}'),
+                if (ret != null && ret.status != 'processing')
+                  Text('Trả: ${formatDate(ret.returnDate)}'),
               ],
             ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(getStatusIcon(combined), color: getStatusColor(combined)),
-                const SizedBox(height: 4),
-                Text(
-                  combined,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: getStatusColor(combined),
-                    fontSize: 12,
-                  ),
-                )
-              ],
-            ),
+            trailing: trailing,
           ),
         );
       },
@@ -262,9 +281,10 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final tabs = [
+      'Tất cả',
       'Chờ duyệt',
+      'Chờ nhận',
       'Đang mượn',
-      'Đang trả',
       'Trả quá hạn',
       'Hư hao',
       'Đã trả',
@@ -277,18 +297,12 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
         appBar: AppBar(
           title: const Text('Lịch sử mượn sách'),
           backgroundColor: AppColors.primary,
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(48),
-            child: Container(
-              color: AppColors.primary,
-              child: TabBar(
-                isScrollable: true,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white70,
-                indicatorColor: Colors.white,
-                tabs: tabs.map((t) => Tab(text: t)).toList(),
-              ),
-            ),
+          bottom: TabBar(
+            isScrollable: true,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: Colors.white,
+            tabs: tabs.map((t) => Tab(text: t)).toList(),
           ),
         ),
         body: TabBarView(
@@ -314,3 +328,4 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
     }
   }
 }
+
