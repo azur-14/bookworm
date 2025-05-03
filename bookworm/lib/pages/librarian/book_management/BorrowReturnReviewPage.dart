@@ -49,16 +49,10 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     fetchAllBorrowRequests().then((list) {
       setState(() => _borrows = list);
     });
-    _returns = [
-      ReturnRequest(
-        id: 'r1',
-        borrowRequestId: 'b2',
-        status: 'processing',
-        returnDate: now.subtract(const Duration(days: 1)),
-        returnImageBase64: null,
-        condition: null,
-      ),
-    ];
+
+    fetchAllReturnRequests().then((list) {
+      setState(() => _returns = list);
+    });
     _bills.clear();
   }
 
@@ -627,6 +621,18 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       return data.map((item) => BorrowRequest.fromJson(item)).toList();
     } else {
       throw Exception('Lỗi khi tải danh sách BorrowRequest: ${response.body}');
+    }
+  }
+
+  Future<List<ReturnRequest>> fetchAllReturnRequests() async {
+    final url = Uri.parse('http://localhost:3002/api/returnRequest');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((item) => ReturnRequest.fromJson(item)).toList();
+    } else {
+      throw Exception('Lỗi khi tải danh sách ReturnRequest: ${response.body}');
     }
   }
 }

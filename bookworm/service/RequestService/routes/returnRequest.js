@@ -14,6 +14,17 @@ router.get('/user/:userId', async (req, res) => {
       console.error('❌ Error in return-requests:', err);
       res.status(500).json({ error: 'Failed to fetch return requests' });
     }
-});  
+});
+
+// Lấy toàn bộ return requests
+router.get('/', async (req, res) => {
+  try {
+    const list = await ReturnRequest.find().sort({ return_date: -1 });
+    res.json(list);
+  } catch (err) {
+    console.error('❌ Error fetching all return requests:', err);
+    res.status(500).json({ error: 'Failed to fetch return requests' });
+  }
+});
 
 module.exports = router;
