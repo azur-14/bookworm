@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:bookworm/theme/AppColor.dart';
 import 'package:bookworm/model/BorowRequest.dart';
 import 'package:bookworm/model/ReturnRequest.dart';
+import 'package:bookworm/model/Bill.dart';
 
 class BorrowReturnReviewPage extends StatefulWidget {
   const BorrowReturnReviewPage({Key? key}) : super(key: key);
@@ -22,9 +23,14 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
 
   List<BorrowRequest> _borrows = [];
   List<ReturnRequest> _returns = [];
+  List<Bill> _bills = [];
 
   String? _borrowFilter;
   String? _returnFilter;
+
+  // Phí cố định
+  static const int overdueFeePerDay = 10000;    // 10k VND/ngày
+  static const int damageFeePerPercent = 5000;  // 5k VND/% hư hại
 
   @override
   void initState() {
@@ -65,7 +71,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
         requestDate: now.subtract(const Duration(days: 3)),
       ),
     ];
-
     _returns = [
       ReturnRequest(
         id: 'r1',
@@ -75,15 +80,8 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
         returnImageBase64: null,
         condition: null,
       ),
-      ReturnRequest(
-        id: 'r2',
-        borrowRequestId: 'b_old',
-        status: 'overdue',
-        returnDate: now.subtract(const Duration(days: 20)),
-        returnImageBase64: null,
-        condition: null,
-      ),
     ];
+    _bills.clear();
   }
 
   @override
@@ -111,7 +109,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     }
   }
 
-  // ----- Borrow actions -----
+  // ---------------- Borrow actions ----------------
 
   void _updateBorrow(BorrowRequest b, String newStatus) {
     setState(() {
@@ -122,6 +120,8 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
           borrowRequestId: b.id!,
           status: 'processing',
           returnDate: DateTime.now(),
+          returnImageBase64: null,
+          condition: null,
         ));
       }
     });
@@ -155,56 +155,127 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     );
   }
 
-  // ----- Return actions -----
+  // ---------------- Return & Billing ----------------
 
   Future<void> _showCompleteReturnDialog(ReturnRequest r) async {
     final condCtl = TextEditingController(text: r.condition);
-    String? base64str = r.returnImageBase64;
+    String? imgBase64 = r.returnImageBase64;
+    String amountStr = '';
+
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (_, setSt) => AlertDialog(
-          title: Text('Hoàn thành trả ${r.id}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: condCtl,
-                decoration: const InputDecoration(labelText: 'Tình trạng sách'),
+        builder: (_, setSt) {
+          // Tính phí
+          final borrow = _borrows.firstWhere((b) => b.id == r.borrowRequestId);
+          final due = borrow.dueDate ?? borrow.requestDate;
+          final daysLate = r.returnDate.difference(due).inDays.clamp(0, 999);
+          final overdueFee = daysLate * overdueFeePerDay;
+          final intactPct = int.tryParse(condCtl.text.replaceAll('%', '')) ?? 100;
+          final damagePct = (100 - intactPct).clamp(0, 100);
+          final damageFee = damagePct * damageFeePerPercent;
+          final total = overdueFee + damageFee;
+
+          return AlertDialog(
+            title: Text('Hoàn thành trả ${r.id}'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: condCtl,
+                    decoration: const InputDecoration(
+                      labelText: 'Tỷ lệ nguyên vẹn (%)',
+                    ),
+                    onChanged: (_) => setSt(() {}),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.image),
+                    label: const Text('Chọn ảnh'),
+                    onPressed: () async {
+                      final img = await _picker.pickImage(source: ImageSource.gallery);
+                      if (img != null) {
+                        final bytes = await img.readAsBytes();
+                        setSt(() => imgBase64 = base64Encode(bytes));
+                      }
+                    },
+                  ),
+                  if (imgBase64 != null) ...[
+                    const SizedBox(height: 8),
+                    Image.memory(base64Decode(imgBase64!)),
+                  ],
+                  const Divider(),
+                  Text('Trễ: $daysLate ngày → ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
+                  Text('Hư hại: $damagePct% → ${NumberFormat.decimalPattern().format(damageFee)}₫'),
+                  const Divider(),
+                  Text('Tổng: ${NumberFormat.decimalPattern().format(total)}₫'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Khách đưa (₫)'),
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => setSt(() => amountStr = v),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.image),
-                label: const Text('Chọn ảnh'),
-                onPressed: () async {
-                  final img = await _picker.pickImage(source: ImageSource.gallery);
-                  if (img != null) {
-                    final bytes = await img.readAsBytes();
-                    setSt(() => base64str = base64Encode(bytes));
-                  }
-                },
-              ),
-              if (base64str != null) ...[
-                const SizedBox(height: 8),
-                Image.memory(base64Decode(base64str!)),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  r.status = 'completed';
-                  r.condition = condCtl.text.trim();
-                  r.returnImageBase64 = base64str;
-                });
-                Navigator.pop(ctx);
-              },
-              child: const Text('Lưu'),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
+              ElevatedButton(
+                onPressed: () {
+                  final paid = int.tryParse(amountStr) ?? total;
+                  final change = (paid - total).clamp(0, paid);
+                  setState(() {
+                    // cập nhật return
+                    r.status = 'completed';
+                    r.condition = condCtl.text.trim();
+                    r.returnImageBase64 = imgBase64;
+                    // tạo hóa đơn
+                    _bills.add(Bill(
+                      id: 'bill_${r.borrowRequestId}_${DateTime.now().millisecondsSinceEpoch}',
+                      borrowRequestId: r.borrowRequestId,
+                      overdueDays: daysLate,
+                      overdueFee: overdueFee,
+                      damagePercentage: damagePct,
+                      damageFee: damageFee,
+                      totalFee: total,
+                      amountReceived: paid,
+                      changeGiven: change,
+                    ));
+                  });
+                  Navigator.pop(ctx);
+                  // show hoá đơn
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Hóa đơn phạt'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Borrow ID: ${r.borrowRequestId}'),
+                          Text('Phí quá hạn: ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
+                          Text('Phí hư hại: ${NumberFormat.decimalPattern().format(damageFee)}₫'),
+                          const Divider(),
+                          Text('Tổng: ${NumberFormat.decimalPattern().format(total)}₫'),
+                          Text('Khách đưa: ${NumberFormat.decimalPattern().format(paid)}₫'),
+                          Text('Trả lại: ${NumberFormat.decimalPattern().format(change)}₫'),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Đóng'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: const Text('Xác nhận'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -215,7 +286,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     );
   }
 
-  // ----- Filtering helpers -----
+  // --------------- Filtering ---------------
 
   List<BorrowRequest> get _filteredBorrows {
     final q = _searchCtl.text.toLowerCase();
@@ -235,11 +306,10 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     }).toList();
   }
 
-  // ----- History helper (fixed null handling) -----
+  // --------------- History ---------------
 
   List<Map<String, dynamic>> get _historyEvents {
     final ev = <Map<String, dynamic>>[];
-    // gộp borrow + return
     for (var b in _borrows) {
       ReturnRequest? ret;
       try {
@@ -247,29 +317,18 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       } catch (_) {
         ret = null;
       }
-      ev.add({
-        'type': ret != null ? 'both' : 'borrow',
-        'borrow': b,
-        'return': ret,
-        'date': b.requestDate,
-      });
+      ev.add({'type': ret != null ? 'both' : 'borrow', 'borrow': b, 'return': ret, 'date': b.requestDate});
     }
-    // các return chỉ có return
     for (var r in _returns) {
       if (!_borrows.any((b) => b.id == r.borrowRequestId)) {
-        ev.add({
-          'type': 'returnOnly',
-          'borrow': null,
-          'return': r,
-          'date': r.returnDate,
-        });
+        ev.add({'type': 'returnOnly', 'borrow': null, 'return': r, 'date': r.returnDate});
       }
     }
     ev.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
     return ev;
   }
 
-  // ----- Detail dialogs -----
+  // --------------- Detail dialogs ---------------
 
   void _showBorrowDetail(BorrowRequest b) {
     showDialog(
@@ -332,7 +391,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     );
   }
 
-  // ----- Build UI -----
+  // --------------- Build UI ---------------
 
   Widget _buildBorrowTab() {
     return Column(
@@ -376,7 +435,10 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                       child: const Text('Reject'),
                     ),
                     if (b.status == 'approved')
-                      TextButton(onPressed: () => _showCancelDialog(b), child: const Text('Cancel')),
+                      TextButton(
+                        onPressed: () => _showCancelDialog(b),
+                        child: const Text('Cancel'),
+                      ),
                   ]),
                 ),
               );
@@ -418,9 +480,15 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                   subtitle: Text('Trả: ${DateFormat('yyyy-MM-dd').format(r.returnDate)}'),
                   trailing: Wrap(spacing: 4, children: [
                     if (r.status != 'completed')
-                      TextButton(onPressed: () => _showCompleteReturnDialog(r), child: const Text('Complete')),
+                      TextButton(
+                        onPressed: () => _showCompleteReturnDialog(r),
+                        child: const Text('Complete'),
+                      ),
                     if (r.status == 'overdue')
-                      TextButton(onPressed: () => _sendOverdueEmail(r), child: const Text('Email overdue')),
+                      TextButton(
+                        onPressed: () => _sendOverdueEmail(r),
+                        child: const Text('Email overdue'),
+                      ),
                   ]),
                 ),
               );
