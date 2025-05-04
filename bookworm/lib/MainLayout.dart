@@ -285,7 +285,7 @@ class _MainLayoutState extends State<MainLayout> {
                                 width: 100,
                                 height: 100,
                                 color: AppColors.primary.withOpacity(0.15),
-                                child: _avatarBase64 != null
+                                child: _avatarBase64 != null && _avatarBase64!.isNotEmpty
                                     ? Image.memory(base64Decode(_avatarBase64!), fit: BoxFit.cover)
                                     : Image.asset('assets/logo_dark.png', fit: BoxFit.cover),
                               ),

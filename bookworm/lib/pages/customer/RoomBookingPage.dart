@@ -28,7 +28,7 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
     super.initState();
     _loadData();
   }
-
+  final now = DateTime.now();
   void _showCustomTimeDialog(Room room) async {
     DateTime now = DateTime.now();
     DateTime? pickedDate = await showDatePicker(
@@ -199,6 +199,8 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
                                         ...days.map((day) {
                                           final slot = DateTime(day.year, day.month, day.day, hour);
                                           final slotEnd = slot.add(const Duration(hours: 1));
+
+                                          // 1. Kiểm tra booking
                                           final isBooked = bookings.any((b) {
                                             final localStart = b.startTime.toLocal();
                                             final localEnd = b.endTime.toLocal();
@@ -206,30 +208,40 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
                                                 localStart.isBefore(slotEnd) &&
                                                 localEnd.isAfter(slot);
                                           });
+
+                                          // 2. Kiểm tra đã qua
+                                          final isPast = slot.isBefore(now);
+
+                                          // 3. Đã chọn chưa
                                           final isSelected = _selectedSlots.contains(slot);
 
+                                          // 4. Chỉ cho chọn khi không booked và không quá khứ
+                                          final canSelect = !isBooked && !isPast;
+
                                           return GestureDetector(
-                                            onTap: isBooked
-                                                ? null
-                                                : () {
+                                            // chỉ bật tap khi canSelect == true
+                                            onTap: canSelect
+                                                ? () {
                                               setStateDialog(() {
-                                                if (isSelected) {
+                                                if (isSelected)
                                                   _selectedSlots.remove(slot);
-                                                } else {
+                                                else
                                                   _selectedSlots.add(slot);
-                                                }
                                               });
-                                            },
+                                            }
+                                                : null,
                                             child: Container(
                                               margin: const EdgeInsets.all(2),
                                               width: 100,
                                               height: 40,
                                               decoration: BoxDecoration(
                                                 color: isBooked
-                                                    ? Colors.red[200]
+                                                    ? Colors.red[200]       // đã có booking
                                                     : isSelected
-                                                    ? Colors.green[200]
-                                                    : Colors.grey[100],
+                                                    ? Colors.green[200] // đã chọn
+                                                    : isPast
+                                                    ? Colors.grey[300] // đã qua
+                                                    : Colors.grey[100], // trống và trong tương lai
                                                 border: Border.all(color: Colors.grey),
                                               ),
                                             ),
