@@ -1,0 +1,491 @@
+// lib/pages/BorrowReturnReviewPage.dart
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:bookworm/theme/AppColor.dart';
+import 'package:bookworm/model/BorowRequest.dart';
+import 'package:bookworm/model/ReturnRequest.dart';
+import 'package:bookworm/model/Bill.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+class BorrowReturnReviewPage extends StatefulWidget {
+  const BorrowReturnReviewPage({Key? key}) : super(key: key);
+  @override
+  _BorrowReturnReviewPageState createState() => _BorrowReturnReviewPageState();
+}
+
+class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabCtrl;
+  final _searchCtl = TextEditingController();
+  final _picker = ImagePicker();
+
+  List<BorrowRequest> _borrows = [];
+  List<ReturnRequest> _returns = [];
+  List<Bill> _bills = [];
+  String? _userId;
+
+  static const int overdueFeePerDay = 10000;    // 10k/ngày
+  static const int damageFeePerPercent = 5000;  // 5k/% hư hại
+
+  // Các label tab status (bỏ 'Trả quá hạn')
+  final List<String> _labels = [
+    'Chờ duyệt',
+    'Chờ nhận',
+    'Đang mượn',
+    'Hư hao',
+    'Đã trả',
+    'Từ chối',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: _labels.length + 1, vsync: this);
+    _loadUserPrefs();
+    _loadBorrowRequests();
+    _loadReturnRequests();
+  }
+
+  Future<void> _loadUserPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() => _userId = prefs.getString('userId'));
+  }
+
+  Future<void> _loadBorrowRequests() async {
+    final res = await http.get(Uri.parse('http://localhost:3002/api/borrowRequest'));
+    if (res.statusCode == 200) {
+      final List data = json.decode(res.body);
+      setState(() => _borrows = data.map((e) => BorrowRequest.fromJson(e)).toList());
+    }
+  }
+
+  Future<void> _loadReturnRequests() async {
+    final res = await http.get(Uri.parse('http://localhost:3002/api/returnRequest'));
+    if (res.statusCode == 200) {
+      final List data = json.decode(res.body);
+      setState(() => _returns = data.map((e) => ReturnRequest.fromJson(e)).toList());
+    }
+  }
+
+  ReturnRequest? _getReturn(BorrowRequest b) {
+    try {
+      return _returns.firstWhere((r) => r.borrowRequestId == b.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Kết hợp status của borrow + return
+  /// Note: ret.status 'overdue' giờ cũng thành 'Đang mượn'
+  String getCombinedStatus(BorrowRequest r) {
+    final ret = _getReturn(r);
+    if (r.status == 'pending') return 'Chờ duyệt';
+    if (r.status == 'rejected') return 'Từ chối';
+    if (r.status == 'approved' && ret == null) return 'Chờ nhận';
+    if (ret != null && (ret.status == 'processing' || ret.status == 'overdue')) {
+      return 'Đang mượn';
+    }
+    if (ret != null && ret.status == 'completed') {
+      if (ret.condition != null && ret.condition!.isNotEmpty) return 'Hư hao';
+      // nếu returned sau dueDate, vẫn xếp vào 'Đã trả'
+      return 'Đã trả';
+    }
+    return 'Không rõ';
+  }
+
+  Color _statusColor(String label) {
+    switch (label) {
+      case 'Chờ duyệt':   return Colors.orange;
+      case 'Chờ nhận':    return Colors.blueAccent;
+      case 'Đang mượn':   return Colors.blueAccent;
+      case 'Hư hao':      return Colors.redAccent;
+      case 'Đã trả':      return Colors.green;
+      case 'Từ chối':     return Colors.red;
+      default:            return Colors.grey;
+    }
+  }
+
+  IconData _statusIcon(String label) {
+    switch (label) {
+      case 'Chờ duyệt':   return Icons.hourglass_top;
+      case 'Chờ nhận':    return Icons.inventory_2;
+      case 'Đang mượn':   return Icons.book;
+      case 'Hư hao':      return Icons.report_problem;
+      case 'Đã trả':      return Icons.assignment_turned_in;
+      case 'Từ chối':     return Icons.cancel;
+      default:            return Icons.help;
+    }
+  }
+
+  Future<void> _updateBorrow(BorrowRequest b, String newStatus) async {
+    final res = await http.put(
+      Uri.parse('http://localhost:3002/api/borrowRequest/${b.id}/status'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'newStatus': newStatus, 'changedBy': _userId}),
+    );
+    if (res.statusCode == 200) setState(() => b.status = newStatus);
+  }
+
+  Future<void> _confirmReceive(BorrowRequest b) async {
+    final res = await http.post(
+      Uri.parse('http://localhost:3002/api/returnRequest'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'borrowRequestId': b.id,
+        'status': 'processing',
+        'returnDate': DateTime.now().toIso8601String(),
+      }),
+    );
+    if (res.statusCode == 201) {
+      setState(() => _returns.add(ReturnRequest.fromJson(json.decode(res.body))));
+    }
+  }
+
+  List<BorrowRequest> _byStatus(String label) {
+    return _borrows
+        .where((b) => getCombinedStatus(b) == label)
+        .toList()
+      ..sort((a, b) => b.requestDate.compareTo(a.requestDate));
+  }
+
+  Widget _buildStatusTab(String label) {
+    final list = _byStatus(label);
+    if (list.isEmpty) return Center(child: Text('Không có "$label".'));
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: list.length,
+      itemBuilder: (_, i) {
+        final b = list[i];
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: _statusColor(label),
+              child: Icon(_statusIcon(label), color: AppColors.white),
+            ),
+            title: Text(b.bookId),
+            subtitle: Text(
+              'User: ${b.userId}\n'
+                  'Ngày: ${DateFormat('yyyy-MM-dd').format(b.requestDate)}',
+            ),
+            trailing: Wrap(spacing: 8, children: [
+              if (label == 'Chờ duyệt') ...[
+                TextButton(onPressed: () => _updateBorrow(b, 'approved'), child: const Text('Approve')),
+                TextButton(onPressed: () => _updateBorrow(b, 'rejected'), child: const Text('Reject')),
+              ],if (label == 'Chờ nhận')
+        TextButton(
+        onPressed: () => _confirmReceive(b),
+        child: const Text('Xác nhận nhận'),
+        ),
+              if (label != 'Chờ duyệt' && label != 'Chờ nhận')
+                TextButton(onPressed: () => _showBorrowDetail(b), child: const Text('Xem')),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+
+  List<ReturnRequest> get _filteredReturns {
+    final q = _searchCtl.text.toLowerCase();
+    return _returns
+        .where((r) => r.borrowRequestId.toLowerCase().contains(q))
+        .toList()
+      ..sort((a, b) => b.returnDate.compareTo(a.returnDate));
+  }
+
+  Future<void> _showCompleteReturnDialog(ReturnRequest r) async {
+    final condCtl = TextEditingController(text: r.condition);
+    String? imgBase64 = r.returnImageBase64;
+    String amountStr = '';
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setSt) {
+          final b = _borrows.firstWhere((x) => x.id == r.borrowRequestId);
+          final due = b.dueDate ?? b.requestDate;
+          final daysLate = r.returnDate.difference(due).inDays.clamp(0, 999);
+          final overdueFee = daysLate * overdueFeePerDay;
+          int damagePct;
+          switch (condCtl.text) {
+            case 'Hư hao nhẹ':     damagePct = 10;  break;
+            case 'Hư tổn đáng kể': damagePct = 50;  break;
+            case 'Mất':            damagePct = 100; break;
+            default:               damagePct = 0;
+          }
+          final damageFee = damagePct * damageFeePerPercent;
+          final total = overdueFee + damageFee;
+
+          return AlertDialog(
+            title: Text('Hoàn thành trả ${r.id}'),
+            content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                DropdownButtonFormField<String>(
+                  value: condCtl.text,
+                  decoration: const InputDecoration(labelText: 'Tình trạng sách'),
+                  items: ['Nguyên vẹn','Hư hao nhẹ','Hư tổn đáng kể','Mất']
+                      .map((s)=>DropdownMenuItem(value: s, child: Text(s))).toList(),
+                  onChanged: (v)=>setSt(()=>condCtl.text=v!),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                  icon: const Icon(Icons.image),
+                  label: const Text('Chọn ảnh'),
+                  onPressed: () async {
+                    final img = await _picker.pickImage(source: ImageSource.gallery);
+                    if (img!=null) {
+                      final bytes = await img.readAsBytes();
+                      setSt(()=>imgBase64=base64Encode(bytes));
+                    }
+                  },
+                ),
+                if (imgBase64!=null) ...[
+                  const SizedBox(height: 8),
+                  Image.memory(base64Decode(imgBase64!), width:100, height:100),
+                ],
+                const Divider(),
+                Text('Trễ: $daysLate ngày → ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
+                Text('Hư hại: $damagePct% → ${NumberFormat.decimalPattern().format(damageFee)}₫'),
+                const Divider(),
+                Text('Tổng: ${NumberFormat.decimalPattern().format(total)}₫'),
+                const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(labelText: 'Khách đưa (₫)'),
+                  keyboardType: TextInputType.number,
+                  onChanged: (v)=>setSt(()=>amountStr=v),
+                ),
+              ]),
+            ),
+            actions: [
+              TextButton(onPressed: ()=>Navigator.pop(ctx), child: const Text('Huỷ')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                onPressed: () {
+                  final paid = int.tryParse(amountStr) ?? total;
+                  final change = (paid - total).clamp(0, paid);
+                  setState(() {
+                    r.status = 'completed';
+                    r.condition = condCtl.text;
+                    r.returnImageBase64 = imgBase64;
+                    _bills.add(Bill(
+                      id: 'bill_${r.borrowRequestId}_${DateTime.now().millisecondsSinceEpoch}',
+                      borrowRequestId: r.borrowRequestId,
+                      overdueDays: daysLate,
+                      overdueFee: overdueFee,
+                      damageFee: damageFee,
+                      totalFee: total,
+                      amountReceived: paid,
+                      changeGiven: change,
+                    ));
+                  });
+                  Navigator.pop(ctx);
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Hóa đơn phạt'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Borrow ID: ${r.borrowRequestId}'),
+                          Text('Quá hạn: ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
+                          Text('Hư hại: ${NumberFormat.decimalPattern().format(damageFee)}₫'),
+                          const Divider(),
+                          Text('Tổng: ${NumberFormat.decimalPattern().format(total)}₫'),
+                          Text('Khách đưa: ${NumberFormat.decimalPattern().format(paid)}₫'),
+                          Text('Trả lại: ${NumberFormat.decimalPattern().format(change)}₫'),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(onPressed: ()=>Navigator.pop(context), child: const Text('Đóng')),
+                      ],
+                    ),
+                  );
+                },
+                child: const Text('Xác nhận'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _sendOverdueEmail(ReturnRequest r) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Gửi email quá hạn'), backgroundColor: Colors.blue),
+    );
+  }
+
+  Widget _buildReturnTab() {
+    final list = _filteredReturns;
+    if (list.isEmpty) return const Center(child: Text('Không có Return.'));
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: list.length,
+      itemBuilder: (_, i) {
+        final r = list[i];
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ListTile(
+            leading: Icon(
+              _statusIcon(getCombinedStatus(_borrows.firstWhere((b)=>b.id==r.borrowRequestId))),
+              color: _statusColor(getCombinedStatus(_borrows.firstWhere((b)=>b.id==r.borrowRequestId))),
+            ),
+            title: Text('Borrow#${r.borrowRequestId}'),
+            subtitle: Text(DateFormat('yyyy-MM-dd').format(r.returnDate)),
+            trailing: Wrap(spacing: 8, children: [
+              if (r.status != 'completed')
+                TextButton(onPressed: () => _showCompleteReturnDialog(r), child: const Text('Complete')),
+              if (r.status == 'overdue')
+                TextButton(onPressed: () => _sendOverdueEmail(r), child: const Text('Email overdue')),
+              if (r.status == 'completed')
+                TextButton(onPressed: () => _showReturnDetail(r), child: const Text('Xem')),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHistoryTab() {
+    final events = <Map<String, dynamic>>[];
+    for (var b in _borrows) {
+      events.add({'type':'borrow','date':b.requestDate,'data':b});
+      final r = _getReturn(b);
+      if (r!=null) events.add({'type':'return','date':r.returnDate,'data':r});
+    }
+    events.sort((a,b)=>b['date'].compareTo(a['date']));
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: events.length,
+      itemBuilder: (_, i) {
+        final e = events[i];
+        if (e['type']=='borrow') {
+          final b = e['data'] as BorrowRequest;
+          return ListTile(
+            leading: const Icon(Icons.login),
+            title: Text('Borrow ${b.id}'),
+            subtitle: Text(DateFormat('yyyy-MM-dd').format(e['date'])),
+            onTap: ()=>_showBorrowDetail(b),
+          );
+        } else {
+          final r = e['data'] as ReturnRequest;
+          // màu vàng nếu overdue, đỏ nếu hư hao
+          Color cardColor = AppColors.white;
+          if (r.status=='overdue') {
+            cardColor = Colors.yellowAccent;
+          } else if (r.condition!=null && r.condition!.isNotEmpty) {
+            cardColor = Colors.redAccent;
+          }
+          return Card(
+            color: cardColor,
+            margin: const EdgeInsets.only(bottom:12),
+            child: ListTile(
+              leading: const Icon(Icons.logout),
+              title: Text('Return ${r.id}'),
+              subtitle: Text(DateFormat('yyyy-MM-dd').format(e['date'])),
+              onTap: ()=>_showReturnDetail(r),
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  void _showBorrowDetail(BorrowRequest b) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Chi tiết Borrow ${b.id}'),
+        content: Text(
+          'User: ${b.userId}\n'
+              'Book: ${b.bookId}\n'
+              'Status: ${getCombinedStatus(b)}\n'
+              'Requested: ${DateFormat('yyyy-MM-dd HH:mm').format(b.requestDate)}',
+        ),
+        actions: [TextButton(onPressed: ()=>Navigator.pop(context), child: const Text('Đóng'))],
+      ),
+    );
+  }
+
+  void _showReturnDetail(ReturnRequest r) {
+    Uint8List? img;
+    if (r.returnImageBase64!=null) img = base64Decode(r.returnImageBase64!);
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Chi tiết Return ${r.id}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Borrow ID: ${r.borrowRequestId}'),
+            Text('Returned: ${DateFormat('yyyy-MM-dd HH:mm').format(r.returnDate)}'),
+            if (r.condition!=null) Text('Condition: ${r.condition}'),
+            if (img!=null) ...[
+              const SizedBox(height:8),
+              Image.memory(img, width:100, height:100),
+            ],
+          ],
+        ),
+        actions: [TextButton(onPressed: ()=>Navigator.pop(context), child: const Text('Đóng'))],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        title: const Text('Duyệt Mượn/Trả Sách', style: TextStyle(color: AppColors.white)),
+        bottom: TabBar(
+          controller: _tabCtrl,
+          isScrollable: true,
+          labelColor: AppColors.white,
+          unselectedLabelColor: AppColors.inactive,
+          indicatorColor: AppColors.white,
+          tabs: [
+            ..._labels.map((l)=>Tab(text:l)),
+            const Tab(text:'Lịch sử'),
+          ],
+        ),
+      ),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: TextField(
+            controller: _searchCtl,
+            decoration: InputDecoration(
+              hintText: 'Tìm user hoặc sách...',
+              prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: AppColors.primary),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabCtrl,
+            children: [
+              ..._labels.map(_buildStatusTab),
+              _buildHistoryTab(),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+}
+

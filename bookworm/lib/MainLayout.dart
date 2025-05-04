@@ -4,7 +4,7 @@ import 'package:bookworm/pages/customer/BorrowHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingPage.dart';
 import 'package:bookworm/pages/librarian/RoomReservation.dart';
-import 'package:bookworm/pages/librarian/book_management/BorrowReturnReviewPage.dart';
+import 'package:bookworm/pages/librarian/borrow_return_review/BorrowReturnReviewPage.dart';
 import 'package:bookworm/theme/AppColor.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
