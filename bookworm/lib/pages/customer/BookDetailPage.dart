@@ -39,19 +39,18 @@ class _BookDetailPageState extends State<BookDetailPage> {
 
   Future<String?> getCurrentUserId() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('userId'); // có thể null nếu chưa đăng nhập
+    return prefs.getString('userId');
   }
 
   void initUser() async {
     _currentUserId = await getCurrentUserId();
     await _checkAlreadyBorrowed();
-    print(_alreadyBorrowed);
   }
-
 
   Future<void> _loadAvailableCount() async {
     try {
-      final res = await http.get(Uri.parse('http://localhost:3003/api/bookcopies/available-count/${widget.book.id}'));
+      final res = await http.get(Uri.parse(
+          'http://localhost:3003/api/bookcopies/available-count/${widget.book.id}'));
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         setState(() => _availableCount = data['availableCount']);
@@ -63,19 +62,20 @@ class _BookDetailPageState extends State<BookDetailPage> {
 
   Future<void> _checkAlreadyBorrowed() async {
     if (_currentUserId == null) return;
-    print(_currentUserId);
-    print(widget.book.id);
-
-    final url = Uri.parse('http://localhost:3002/api/borrowRequest/check/$_currentUserId/${widget.book.id}');
+    final url = Uri.parse(
+        'http://localhost:3002/api/borrowRequest/check/$_currentUserId/${widget.book.id}');
     final res = await http.get(url);
-
     if (res.statusCode == 200) {
       final data = json.decode(res.body);
       setState(() => _alreadyBorrowed = data['alreadyBorrowed'] == true);
     }
   }
 
-  Future<void> _submitBorrowRequest(DateTime dueDate) async {
+  Future<void> _submitBorrowRequest(
+      DateTime requestDate,
+      DateTime receiveDate,
+      DateTime dueDate,
+      ) async {
     try {
       final response = await http.post(
         Uri.parse('http://localhost:3002/api/borrowRequest'),
@@ -83,6 +83,8 @@ class _BookDetailPageState extends State<BookDetailPage> {
         body: json.encode({
           'user_id': _currentUserId,
           'book_id': widget.book.id,
+          'request_date': requestDate.toIso8601String(),
+          'receive_date': receiveDate.toIso8601String(),
           'due_date': dueDate.toIso8601String(),
         }),
       );
@@ -92,7 +94,6 @@ class _BookDetailPageState extends State<BookDetailPage> {
           _availableCount--;
           _alreadyBorrowed = true;
         });
-
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Row(
             children: [
@@ -116,7 +117,9 @@ class _BookDetailPageState extends State<BookDetailPage> {
   }
 
   void _showBorrowDialog() async {
-    DateTime dueDate = DateTime.now().add(const Duration(days: 14));
+    DateTime requestDate = DateTime.now();
+    DateTime receiveDate = requestDate;
+    DateTime dueDate = requestDate.add(const Duration(days: 14));
 
     await showDialog(
       context: context,
@@ -126,19 +129,47 @@ class _BookDetailPageState extends State<BookDetailPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Chọn ngày trả dự kiến:'),
+              const Text('Chọn ngày mượn:'),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: requestDate,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 7)),
+                  );
+                  if (picked != null) setStateDialog(() => requestDate = picked);
+                },
+                child: Text('📅 ${DateFormat('yyyy-MM-dd').format(requestDate)}'),
+              ),
               const SizedBox(height: 12),
+              const Text('Chọn ngày nhận:'),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: receiveDate,
+                    firstDate: requestDate,
+                    lastDate: dueDate,
+                  );
+                  if (picked != null) setStateDialog(() => receiveDate = picked);
+                },
+                child: Text('📅 ${DateFormat('yyyy-MM-dd').format(receiveDate)}'),
+              ),
+              const SizedBox(height: 12),
+              const Text('Chọn ngày trả dự kiến:'),
+              const SizedBox(height: 8),
               ElevatedButton(
                 onPressed: () async {
                   final picked = await showDatePicker(
                     context: context,
                     initialDate: dueDate,
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime.now().add(const Duration(days: 60)),
+                    firstDate: receiveDate.add(const Duration(days: 1)),
+                    lastDate: receiveDate.add(const Duration(days: 60)),
                   );
-                  if (picked != null) {
-                    setStateDialog(() => dueDate = picked);
-                  }
+                  if (picked != null) setStateDialog(() => dueDate = picked);
                 },
                 child: Text('📅 ${DateFormat('yyyy-MM-dd').format(dueDate)}'),
               ),
@@ -148,7 +179,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
             ElevatedButton(
               onPressed: () {
-                _submitBorrowRequest(dueDate);
+                _submitBorrowRequest(requestDate, receiveDate, dueDate);
                 Navigator.pop(ctx);
               },
               child: const Text('Xác nhận'),
@@ -182,10 +213,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: SizedBox(
-                    width: 100,
-                    height: 150,
-                    child: _bookImage(book)
-                  ),
+                      width: 100, height: 150, child: _bookImage(book)),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -195,14 +223,21 @@ class _BookDetailPageState extends State<BookDetailPage> {
                       AutoSizeText(
                         book.title,
                         maxLines: 2,
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      Text('by ${book.author}', style: const TextStyle(fontSize: 16, color: Colors.grey)),
+                      Text('by ${book.author}',
+                          style:
+                          const TextStyle(fontSize: 16, color: Colors.grey)),
                       const SizedBox(height: 4),
-                      Text('${_catName(book.categoryId)} · ${book.publishYear}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                      Text('${_catName(book.categoryId)} · ${book.publishYear}',
+                          style:
+                          const TextStyle(fontSize: 14, color: Colors.grey)),
                       const SizedBox(height: 4),
-                      Text('Created: $created', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text('Created: $created',
+                          style:
+                          const TextStyle(fontSize: 12, color: Colors.grey)),
                     ],
                   ),
                 ),
@@ -210,14 +245,11 @@ class _BookDetailPageState extends State<BookDetailPage> {
             ),
 
             const SizedBox(height: 24),
-
             // Availability
             Row(
               children: [
-                Icon(
-                  isAvailable ? Icons.check_circle : Icons.cancel,
-                  color: isAvailable ? Colors.green : Colors.red,
-                ),
+                Icon(isAvailable ? Icons.check_circle : Icons.cancel,
+                    color: isAvailable ? Colors.green : Colors.red),
                 const SizedBox(width: 8),
                 Text(
                   isAvailable ? 'In Stock' : 'Unavailable',
@@ -228,15 +260,16 @@ class _BookDetailPageState extends State<BookDetailPage> {
                   ),
                 ),
                 const Spacer(),
-                Text('$_availableCount/${book.totalQuantity}', style: const TextStyle(fontSize: 16)),
+                Text('$_availableCount/${book.totalQuantity}',
+                    style: const TextStyle(fontSize: 16)),
               ],
             ),
 
             const SizedBox(height: 24),
-
             // Description
             if ((book.description ?? '').isNotEmpty) ...[
-              const Text('Description', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const Text('Description',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(book.description!, style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 24),
@@ -244,18 +277,23 @@ class _BookDetailPageState extends State<BookDetailPage> {
 
             // Borrow button
             ElevatedButton.icon(
-              icon: Icon(_alreadyBorrowed ? Icons.hourglass_top : Icons.shopping_basket),
+              icon: Icon(_alreadyBorrowed
+                  ? Icons.hourglass_top
+                  : Icons.shopping_basket),
               label: Text(
                 _alreadyBorrowed ? 'Pending Approval' : 'Borrow ($_availableCount)',
                 style: const TextStyle(fontSize: 16),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _alreadyBorrowed ? Colors.grey[300] : const Color(0xFF7B4F3C),
+                backgroundColor:
+                _alreadyBorrowed ? Colors.grey[300] : const Color(0xFF7B4F3C),
                 foregroundColor: Colors.black54,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
-              onPressed: (!isAvailable || _alreadyBorrowed) ? null : _showBorrowDialog,
+              onPressed:
+              (!isAvailable || _alreadyBorrowed) ? null : _showBorrowDialog,
             ),
           ],
         ),
@@ -267,15 +305,9 @@ class _BookDetailPageState extends State<BookDetailPage> {
     if (book.image.isEmpty) return const SizedBox.shrink();
     try {
       final bytes = base64Decode(book.image);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.memory(bytes, height: 140, width: 100, fit: BoxFit.cover),
-      );
+      return Image.memory(bytes, height: 140, width: 100, fit: BoxFit.cover);
     } catch (_) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(book.image, height: 140, width: 100, fit: BoxFit.cover),
-      );
+      return Image.network(book.image, height: 140, width: 100, fit: BoxFit.cover);
     }
   }
 }
