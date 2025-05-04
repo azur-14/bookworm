@@ -74,12 +74,33 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
-// get tất cả BorrowRequest
+// get tất cả BorrowRequest kèm email + tên sách
 router.get('/', async (req, res) => {
   try {
     const requests = await BorrowRequest.find().sort({ requestDate: -1 });
-    res.json(requests);
+
+    // Lấy danh sách userId và bookId duy nhất
+    const userIds = [...new Set(requests.map(r => r.user_id))];
+    const bookIds = [...new Set(requests.map(r => r.book_id))];
+
+    // Gọi sang UserService để lấy email
+    const userRes = await axios.post('http://localhost:3000/api/users/emails', { userIds });
+    const emailMap = userRes.data;
+
+    // Gọi sang BookService để lấy tên sách
+    const bookRes = await axios.post('http://localhost:3003/api/books/titles', { bookIds });
+    const bookMap = bookRes.data;
+
+    // Gắn email và book title
+    const enriched = requests.map(r => ({
+      ...r.toObject(),
+      userEmail: emailMap[r.user_id] || r.user_id,
+      bookTitle: bookMap[r.book_id] || r.book_id,
+    }));
+
+    res.json(enriched);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Lỗi khi tải danh sách yêu cầu mượn sách', detail: err.message });
   }
 });

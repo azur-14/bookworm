@@ -8,6 +8,8 @@ class BorrowRequest {
   DateTime? receiveDate;
   DateTime? dueDate;
   DateTime? returnDate;
+  String? userEmail;
+  String? bookTitle;
 
   BorrowRequest({
     this.id,
@@ -19,6 +21,8 @@ class BorrowRequest {
     this.receiveDate,
     this.dueDate,
     this.returnDate,
+    this.userEmail,
+    this.bookTitle,
   }) : requestDate = requestDate ?? DateTime.now();
 
   factory BorrowRequest.fromJson(Map<String, dynamic> json) {
@@ -29,6 +33,8 @@ class BorrowRequest {
       bookId: json['book_id'] as String,
       status: json['status'] as String? ?? 'pending',
       requestDate: DateTime.parse(json['request_date'] as String),
+      userEmail: json['userEmail'],
+      bookTitle: json['bookTitle'],
       receiveDate: json['receive_date'] != null
           ? DateTime.parse(json['receive_date'] as String)
           : null,

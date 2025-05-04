@@ -121,4 +121,16 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+router.post('/titles', async (req, res) => {
+  const { bookIds } = req.body;
+  try {
+    const books = await Book.find({ id: { $in: bookIds } });
+    const map = {};
+    books.forEach(b => map[b.id] = b.title);
+    res.json(map);
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi khi lấy tiêu đề sách', detail: err.message });
+  }
+});
+
 module.exports = router;

@@ -143,10 +143,12 @@ router.post('/reset-password', async (req, res) => {
 // Lấy danh sách người dùng KHÔNG phải admin hoặc librarian
 router.get('/', async (req, res) => {
   try {
-    const users = await User.find({
-      role: { $nin: ['admin', 'librarian'] }
-    }).sort({ timeCreate: -1 });
+    const role = req.query.role;
 
+    // Nếu có truyền role, lọc theo role đó
+    const filter = role ? { role } : {};
+
+    const users = await User.find(filter).sort({ timeCreate: -1 });
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: 'Lỗi khi truy vấn người dùng.' });
@@ -213,6 +215,24 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: 'User deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Lỗi khi xoá user', error: err.message });
+  }
+});
+
+router.post('/emails', async (req, res) => {
+  const { userIds } = req.body;
+  if (!Array.isArray(userIds)) {
+    return res.status(400).json({ error: 'userIds phải là mảng' });
+  }
+
+  try {
+    const users = await User.find({ _id: { $in: userIds } });
+    const map = {};
+    users.forEach(u => {
+      map[u._id.toString()] = u.email;
+    });
+    res.json(map);
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi server', detail: err.message });
   }
 });
 

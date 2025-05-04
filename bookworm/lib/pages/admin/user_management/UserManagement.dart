@@ -50,7 +50,8 @@ class _LibrarianManagementPageState extends State<LibrarianManagementPage> with 
   }
 
   Future<List<User>> fetchUsers() async {
-    final response = await http.get(Uri.parse('http://localhost:3000/api/users'));
+    final role = 'librarian';
+    final response = await http.get(Uri.parse('http://localhost:3000/api/users?role=$role'));
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = json.decode(response.body);
       return jsonList.map((json) => User.fromJson(json)).toList();
