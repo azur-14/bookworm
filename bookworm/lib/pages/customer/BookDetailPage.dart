@@ -71,11 +71,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
     }
   }
 
-  Future<void> _submitBorrowRequest(
-      DateTime requestDate,
-      DateTime receiveDate,
-      DateTime dueDate,
-      ) async {
+  Future<void> _submitBorrowRequest(DateTime requestDate, DateTime dueDate) async {
     try {
       final response = await http.post(
         Uri.parse('http://localhost:3002/api/borrowRequest'),
@@ -84,7 +80,6 @@ class _BookDetailPageState extends State<BookDetailPage> {
           'user_id': _currentUserId,
           'book_id': widget.book.id,
           'request_date': requestDate.toIso8601String(),
-          'receive_date': receiveDate.toIso8601String(),
           'due_date': dueDate.toIso8601String(),
         }),
       );
@@ -118,7 +113,6 @@ class _BookDetailPageState extends State<BookDetailPage> {
 
   void _showBorrowDialog() async {
     DateTime requestDate = DateTime.now();
-    DateTime receiveDate = requestDate;
     DateTime dueDate = requestDate.add(const Duration(days: 14));
 
     await showDialog(
@@ -136,29 +130,14 @@ class _BookDetailPageState extends State<BookDetailPage> {
                   final picked = await showDatePicker(
                     context: context,
                     initialDate: requestDate,
-                    firstDate: DateTime.now(),
+                    firstDate: DateTime.now().subtract(const Duration(days: 0)),
                     lastDate: DateTime.now().add(const Duration(days: 7)),
                   );
                   if (picked != null) setStateDialog(() => requestDate = picked);
                 },
                 child: Text('📅 ${DateFormat('yyyy-MM-dd').format(requestDate)}'),
               ),
-              const SizedBox(height: 12),
-              const Text('Chọn ngày nhận:'),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: receiveDate,
-                    firstDate: requestDate,
-                    lastDate: dueDate,
-                  );
-                  if (picked != null) setStateDialog(() => receiveDate = picked);
-                },
-                child: Text('📅 ${DateFormat('yyyy-MM-dd').format(receiveDate)}'),
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               const Text('Chọn ngày trả dự kiến:'),
               const SizedBox(height: 8),
               ElevatedButton(
@@ -166,8 +145,8 @@ class _BookDetailPageState extends State<BookDetailPage> {
                   final picked = await showDatePicker(
                     context: context,
                     initialDate: dueDate,
-                    firstDate: receiveDate.add(const Duration(days: 1)),
-                    lastDate: receiveDate.add(const Duration(days: 60)),
+                    firstDate: requestDate.add(const Duration(days: 1)),
+                    lastDate: requestDate.add(const Duration(days: 60)),
                   );
                   if (picked != null) setStateDialog(() => dueDate = picked);
                 },
@@ -179,7 +158,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
             ElevatedButton(
               onPressed: () {
-                _submitBorrowRequest(requestDate, receiveDate, dueDate);
+                _submitBorrowRequest(requestDate, dueDate);
                 Navigator.pop(ctx);
               },
               child: const Text('Xác nhận'),
@@ -212,8 +191,7 @@ class _BookDetailPageState extends State<BookDetailPage> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: SizedBox(
-                      width: 100, height: 150, child: _bookImage(book)),
+                  child: SizedBox(width: 100, height: 150, child: _bookImage(book)),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -223,27 +201,23 @@ class _BookDetailPageState extends State<BookDetailPage> {
                       AutoSizeText(
                         book.title,
                         maxLines: 2,
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold),
+                        style:
+                        const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Text('by ${book.author}',
-                          style:
-                          const TextStyle(fontSize: 16, color: Colors.grey)),
+                          style: const TextStyle(fontSize: 16, color: Colors.grey)),
                       const SizedBox(height: 4),
                       Text('${_catName(book.categoryId)} · ${book.publishYear}',
-                          style:
-                          const TextStyle(fontSize: 14, color: Colors.grey)),
+                          style: const TextStyle(fontSize: 14, color: Colors.grey)),
                       const SizedBox(height: 4),
                       Text('Created: $created',
-                          style:
-                          const TextStyle(fontSize: 12, color: Colors.grey)),
+                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
                     ],
                   ),
                 ),
               ],
             ),
-
             const SizedBox(height: 24),
             // Availability
             Row(
@@ -264,7 +238,6 @@ class _BookDetailPageState extends State<BookDetailPage> {
                     style: const TextStyle(fontSize: 16)),
               ],
             ),
-
             const SizedBox(height: 24),
             // Description
             if ((book.description ?? '').isNotEmpty) ...[
@@ -274,12 +247,10 @@ class _BookDetailPageState extends State<BookDetailPage> {
               Text(book.description!, style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 24),
             ],
-
             // Borrow button
             ElevatedButton.icon(
-              icon: Icon(_alreadyBorrowed
-                  ? Icons.hourglass_top
-                  : Icons.shopping_basket),
+              icon: Icon(
+                  _alreadyBorrowed ? Icons.hourglass_top : Icons.shopping_basket),
               label: Text(
                 _alreadyBorrowed ? 'Pending Approval' : 'Borrow ($_availableCount)',
                 style: const TextStyle(fontSize: 16),
