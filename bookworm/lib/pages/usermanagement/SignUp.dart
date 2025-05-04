@@ -20,10 +20,6 @@ class _SignUpPageState extends State<SignUpPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-  // Ảnh đại diện
-  File? _imageFile;
-  String? _base64Avatar;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -75,23 +71,6 @@ class _SignUpPageState extends State<SignUpPage> {
                               ),
                             ),
                             const SizedBox(height: 30),
-                            ElevatedButton(
-                              onPressed: pickImage,
-                              child: const Text('Chọn ảnh đại diện'),
-                            ),
-                            if (_imageFile != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 10),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(50),
-                                  child: Image.file(
-                                    _imageFile!,
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
                             const SizedBox(height: 20),
                             TextField(
                               controller: firstNameController,
@@ -195,18 +174,6 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  // Chọn ảnh
-  Future<void> pickImage() async {
-    final pickedFile =
-    await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      _imageFile = File(pickedFile.path);
-      final bytes = await _imageFile!.readAsBytes();
-      _base64Avatar = base64Encode(bytes);
-      setState(() {});
-    }
-  }
-
   // Gửi đăng ký
   Future<void> registerUser() async {
     final url = Uri.parse('http://localhost:3000/api/users/signup');
@@ -221,7 +188,7 @@ class _SignUpPageState extends State<SignUpPage> {
         '${firstNameController.text} ${lastNameController.text}'.trim(),
         'email': emailController.text,
         'phone': phoneController.text,
-        'avatar': _base64Avatar ?? '',
+
       }),
     );
 
