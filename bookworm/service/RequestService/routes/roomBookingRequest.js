@@ -102,7 +102,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { status } = req.body;
-    if (!['approved', 'rejected', 'cancelled'].includes(status)) {
+    if (!['approved', 'using', 'finished', 'rejected', 'cancelled'].includes(status)) {
       return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
     }
 

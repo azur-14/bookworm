@@ -269,6 +269,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       itemCount: list.length,
       itemBuilder: (_, i) {
         final b = list[i];
+        // trước khi return, tính toán receiveDate logic:
         final receiveDate = b.receiveDate;
         final now = DateTime.now();
         final hasReceive = receiveDate != null;
@@ -405,7 +406,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                     ),
                   ),
               ],
-
             ],
           ),
         ),
@@ -418,7 +418,19 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       ),
     );
   }
-
+  String _mapConditionToCopyStatus(String condition) {
+    switch (condition) {
+      case 'Hư hao nhẹ':
+        return 'damaged';
+      case 'Hư tổn đáng kể':
+        return 'damaged';
+      case 'Mất':
+        return 'lost';
+      case 'Nguyên vẹn':
+      default:
+        return 'available';
+    }
+  }
   Future<void> _showCompleteReturnDialog(ReturnRequest r) async {
     final condCtl = TextEditingController(text: r.condition);
     String? imgBase64 = r.returnImageBase64;
@@ -511,6 +523,12 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                       'condition': condCtl.text.trim(),
                       'returnImageBase64': imgBase64,
                     }),
+                  );
+
+                  await http.put(
+                    Uri.parse('http://localhost:3003/api/bookcopies/${borrow.bookCopyId}/status'),
+                    headers: {'Content-Type': 'application/json'},
+                    body: json.encode({'newStatus': _mapConditionToCopyStatus(_selectedState)}),
                   );
                   await _postBill(newBill);
                   Navigator.pop(ctx);
