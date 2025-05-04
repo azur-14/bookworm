@@ -159,4 +159,21 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// cập nhật trạng thái BookCopy
+router.put('/:copyId/status', async (req, res) => {
+  const { newStatus } = req.body;
+  try {
+    const copy = await BookCopy.findOne({ id: req.params.copyId });
+    if (!copy) return res.status(404).json({ message: 'BookCopy not found' });
+
+    copy.status = newStatus;
+    await copy.save();
+    res.json({ message: 'BookCopy status updated', copy });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error updating book copy status' });
+  }
+});
+
+
 module.exports = router;
