@@ -1,5 +1,6 @@
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:bookworm/pages/admin/ActivityLog.dart';
+import 'package:bookworm/pages/admin/systemconfig.dart';
 import 'package:bookworm/pages/customer/BorrowHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingPage.dart';
@@ -71,47 +72,39 @@ class _MainLayoutState extends State<MainLayout> {
     switch (_userRole) {
       case 'admin':
         return [
-          NavItem(title: 'Dashboard', icon: Icons.dashboard, page: const DashboardPage()),
-          NavItem(title: 'Activity Log', icon: Icons.dashboard, page: const ActivityLogAdminPage()),
-          NavItem(title: 'Books', icon: Icons.menu_book, page: const BookManagementPage()),
-          NavItem(title: 'Users', icon: Icons.people, page: const UserManagementPage()),
-          NavItem(title: 'Librarians', icon: Icons.people, page: const LibrarianManagementPage()),
-          NavItem(title: 'Rooms', icon: Icons.store, page: const RoomManagementPage()),
+          NavItem(title: 'Dashboard',       icon: Icons.admin_panel_settings,    page: const DashboardPage()),
+          NavItem(title: 'Activity Log',    icon: Icons.history,                  page: const ActivityLogAdminPage()),
+          NavItem(title: 'Books Borrow',    icon: Icons.rule,                     page: BorrowReturnReviewPage()),
+          NavItem(title: 'Books',           icon: Icons.menu_book,                page: const BookManagementPage()),
+          NavItem(title: 'Users',           icon: Icons.supervisor_account,       page: const UserManagementPage()),
+          NavItem(title: 'Librarians',      icon: Icons.badge,                    page: const LibrarianManagementPage()),
+          NavItem(title: 'Rooms',           icon: Icons.meeting_room,             page: const RoomManagementPage()),
+          NavItem(title: 'Room Reservation',icon: Icons.event_available,          page: BookingReviewPage()),
+          NavItem(title: 'System Config',   icon: Icons.settings_applications,    page: SystemConfigPage()),
         ];
       case 'librarian':
         return [
-          NavItem(title: 'Dashboard', icon: Icons.dashboard, page: const DashboardPage()),
-          NavItem(title: 'Users', icon: Icons.people, page: const UserManagementPage()),
-          NavItem(title: 'Books Borrow', icon: Icons.menu_book, page: BorrowReturnReviewPage()),
-          NavItem(title: 'Books', icon: Icons.menu_book, page: const BookManagementPage()),
-          NavItem(title: 'Rooms', icon: Icons.store, page: const RoomManagementPage()),
-          NavItem(title: 'Room Reservation', icon: Icons.store, page: BookingReviewPage()),
+          NavItem(title: 'Dashboard',       icon: Icons.dashboard_customize,      page: const DashboardPage()),
+          NavItem(title: 'Users',           icon: Icons.person_search,            page: const UserManagementPage()),
+          NavItem(title: 'Books Borrow',    icon: Icons.library_books,            page: BorrowReturnReviewPage()),
+          NavItem(title: 'Books',           icon: Icons.book_online,              page: const BookManagementPage()),
+          NavItem(title: 'Rooms',           icon: Icons.room_service,             page: const RoomManagementPage()),
+          NavItem(title: 'Room Reservation',icon: Icons.date_range,               page: BookingReviewPage()),
         ];
       case 'customer':
         return [
-          NavItem(
-            title: 'Room Booking Page',
-            icon: Icons.store,
-            page: RoomBookingPage(),
-          ),
-          NavItem(title: 'Book Borrowing Page', icon: Icons.menu_book, page: const BookShelfPage()),
-          NavItem(
-            title: 'Book Borrowing History',
-            icon: Icons.history,
-            page: BorrowHistoryPage(userId: _userId!), // ✅ truyền đúng userId
-          ),
-          NavItem(
-            title: 'Room Booking History',
-            icon: Icons.history,
-            page: RoomBookingHistoryPage(userId: _userId!),
-          ),
+          NavItem(title: 'Room Booking',         icon: Icons.meeting_room_outlined,   page: RoomBookingPage()),
+          NavItem(title: 'Search Books',         icon: Icons.search,                  page: const BookShelfPage()),
+          NavItem(title: 'Borrowing History',    icon: Icons.history_edu,             page: BorrowHistoryPage(userId: _userId!)),
+          NavItem(title: 'Room Booking History', icon: Icons.calendar_today,          page: RoomBookingHistoryPage(userId: _userId!)),
         ];
       default:
         return [
-          NavItem(title: 'Book Borrowing Page', icon: Icons.menu_book, page: const BookShelfPage()),
+          NavItem(title: 'Search Books', icon: Icons.search_off, page: const BookShelfPage()),
         ];
     }
   }
+
 
   Widget _body() => _navItems[_selectedIndex].page;
 
