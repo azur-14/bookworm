@@ -188,13 +188,26 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
         final req = list[i];
         final room = getRoom(req.roomId)!;
 
-        // pending → chỉ xem chi tiết
+        // pending → cho phép Hủy + Xem chi tiết
         if (req.status == 'pending') {
-          return _bookingTile(req, room, trailing: TextButton(
-            onPressed: () => showDetail(req, room),
-            child: const Text('Xem'),
+          return _bookingTile(req, room, trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () {
+                  _updateBookingStatus(req.id, 'pending', 'cancelled');
+                },
+                child: const Text('Hủy'),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => showDetail(req, room),
+                child: const Text('Xem'),
+              ),
+            ],
           ));
         }
+
 
         // approved → Hủy + Xem hóa đơn
         if (req.status == 'approved') {
