@@ -219,21 +219,12 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
             child: const Text('Hủy'),
           );
         } else if (combined == 'Chờ nhận') {
-          trailing = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ElevatedButton(
-                onPressed: () => cancelRequest(r),
-                child: const Text('Hủy'),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () => confirmReceive(r),
-                child: const Text('Xác nhận nhận'),
-              ),
-            ],
-          );
-        } else {
+      trailing = ElevatedButton(
+        onPressed: () => cancelRequest(r),
+        child: const Text('Hủy'),
+      );
+    }
+    else {
           trailing = Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
