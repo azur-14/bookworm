@@ -5,6 +5,7 @@ import 'package:bookworm/pages/customer/BorrowHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingHistoryPage.dart';
 import 'package:bookworm/pages/customer/RoomBookingPage.dart';
 import 'package:bookworm/pages/librarian/RoomReservation.dart';
+import 'package:bookworm/pages/librarian/Statistics.dart';
 import 'package:bookworm/pages/librarian/borrow_return_review/BorrowReturnReviewPage.dart';
 import 'package:bookworm/theme/AppColor.dart';
 import 'package:flutter/material.dart';
@@ -67,36 +68,45 @@ class _MainLayoutState extends State<MainLayout> {
     });
   }
 
-
   List<NavItem> get _navItems {
     switch (_userRole) {
       case 'admin':
         return [
-          NavItem(title: 'Dashboard',       icon: Icons.admin_panel_settings,    page: const DashboardPage()),
-          NavItem(title: 'Activity Log',    icon: Icons.history,                  page: const ActivityLogAdminPage()),
-          NavItem(title: 'Books Borrow',    icon: Icons.rule,                     page: BorrowReturnReviewPage()),
-          NavItem(title: 'Books',           icon: Icons.menu_book,                page: const BookManagementPage()),
-          NavItem(title: 'Users',           icon: Icons.supervisor_account,       page: const UserManagementPage()),
-          NavItem(title: 'Librarians',      icon: Icons.badge,                    page: const LibrarianManagementPage()),
-          NavItem(title: 'Rooms',           icon: Icons.meeting_room,             page: const RoomManagementPage()),
-          NavItem(title: 'Room Reservation',icon: Icons.event_available,          page: BookingReviewPage()),
-          NavItem(title: 'System Config',   icon: Icons.settings_applications,    page: SystemConfigPage()),
+          NavItem(title: 'Activity Log',      icon: Icons.history,                 page: const ActivityLogAdminPage()),
+          NavItem(title: 'Books Borrow',      icon: Icons.rule,                    page: BorrowReturnReviewPage()),
+          NavItem(title: 'Books',             icon: Icons.menu_book,               page: const BookManagementPage()),
+          NavItem(title: 'Users',             icon: Icons.supervisor_account,      page: const UserManagementPage()),
+          NavItem(title: 'Librarians',        icon: Icons.badge,                   page: const LibrarianManagementPage()),
+          NavItem(title: 'Rooms',             icon: Icons.meeting_room,            page: const RoomManagementPage()),
+          NavItem(title: 'Room Reservation',  icon: Icons.event_available,         page: BookingReviewPage()),
+          NavItem(title: 'System Config',     icon: Icons.settings_applications,   page: SystemConfigPage()),
+          // ---- thêm dòng sau ----
+          NavItem(
+            title: 'Income Statistic',
+            icon: Icons.bar_chart,
+            page: StatsPage(),   // truyền danh sách Bill từ state
+          ),
         ];
       case 'librarian':
         return [
-          NavItem(title: 'Dashboard',       icon: Icons.dashboard_customize,      page: const DashboardPage()),
-          NavItem(title: 'Users',           icon: Icons.person_search,            page: const UserManagementPage()),
-          NavItem(title: 'Books Borrow',    icon: Icons.library_books,            page: BorrowReturnReviewPage()),
-          NavItem(title: 'Books',           icon: Icons.book_online,              page: const BookManagementPage()),
-          NavItem(title: 'Rooms',           icon: Icons.room_service,             page: const RoomManagementPage()),
-          NavItem(title: 'Room Reservation',icon: Icons.date_range,               page: BookingReviewPage()),
+          NavItem(title: 'Users',             icon: Icons.person_search,           page: const UserManagementPage()),
+          NavItem(title: 'Books Borrow',      icon: Icons.library_books,           page: BorrowReturnReviewPage()),
+          NavItem(title: 'Books',             icon: Icons.book_online,             page: const BookManagementPage()),
+          NavItem(title: 'Rooms',             icon: Icons.room_service,            page: const RoomManagementPage()),
+          NavItem(title: 'Room Reservation',  icon: Icons.date_range,              page: BookingReviewPage()),
+          // ---- thêm dòng sau ----
+          NavItem(
+            title: 'Income Statistic',
+            icon: Icons.bar_chart,
+            page: StatsPage(),
+          ),
         ];
       case 'customer':
         return [
-          NavItem(title: 'Room Booking',         icon: Icons.meeting_room_outlined,   page: RoomBookingPage()),
-          NavItem(title: 'Search Books',         icon: Icons.search,                  page: const BookShelfPage()),
-          NavItem(title: 'Borrowing History',    icon: Icons.history_edu,             page: BorrowHistoryPage(userId: _userId!)),
-          NavItem(title: 'Room Booking History', icon: Icons.calendar_today,          page: RoomBookingHistoryPage(userId: _userId!)),
+          NavItem(title: 'Room Booking',          icon: Icons.meeting_room_outlined, page: RoomBookingPage()),
+          NavItem(title: 'Search Books',          icon: Icons.search,               page: const BookShelfPage()),
+          NavItem(title: 'Borrowing History',     icon: Icons.history_edu,          page: BorrowHistoryPage(userId: _userId!)),
+          NavItem(title: 'Room Booking History',  icon: Icons.calendar_today,       page: RoomBookingHistoryPage(userId: _userId!)),
         ];
       default:
         return [
@@ -125,21 +135,26 @@ class _MainLayoutState extends State<MainLayout> {
               padding: const EdgeInsets.all(16.0),
               child: Image.asset('assets/logo_dark.png', width: 150, height: 150),
             ),
-            const SizedBox(height: 8),
-            // Nav items
-            ..._navItems.asMap().entries.map((e) {
-              final idx = e.key;
-              final item = e.value;
-              return ListTile(
-                leading: Icon(item.icon, color: Colors.white),
-                title: Text(item.title, style: const TextStyle(color: Colors.white)),
-                selected: idx == _selectedIndex,
-                selectedTileColor: Colors.white24,
-                onTap: () => _onItemTap(idx),
-              );
-            }),
-            const Spacer(),
-            // Logout
+
+            // Bọc nav items vào Expanded ListView để scroll khi overflow
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: _navItems.asMap().entries.map((e) {
+                  final idx = e.key;
+                  final item = e.value;
+                  return ListTile(
+                    leading: Icon(item.icon, color: Colors.white),
+                    title: Text(item.title, style: const TextStyle(color: Colors.white)),
+                    selected: idx == _selectedIndex,
+                    selectedTileColor: Colors.white24,
+                    onTap: () => _onItemTap(idx),
+                  );
+                }).toList(),
+              ),
+            ),
+
+            // Logout luôn nằm dưới cùng
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.white),
               title: const Text('Log Out', style: TextStyle(color: Colors.white)),
@@ -155,6 +170,7 @@ class _MainLayoutState extends State<MainLayout> {
       ),
     );
   }
+
 
   Widget _buildAppBarTitle() {
     final String formattedTime = DateFormat('hh:mm a').format(DateTime.now());
