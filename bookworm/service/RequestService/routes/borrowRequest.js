@@ -4,17 +4,20 @@ const router = express.Router();
 const BorrowRequest = require('../models/BorrowRequest');
 const RequestStatusHistory = require('../models/RequestStatusHistory');
 const { v4: uuidv4 } = require('uuid');
+const moment = require('moment');
 
 // gửi yêu cầu mượn sách
 router.post('/', async (req, res) => {
   try {
-    const { user_id, book_id, due_date } = req.body;
+    const { user_id, book_id, receive_date, request_date, due_date } = req.body;
 
     // 1. Tạo BorrowRequest (chưa update BookCopy)
     const request = new BorrowRequest({
       id: uuidv4(),
       user_id,
       book_id: book_id,
+      receive_date: moment(receive_date).add(7, 'hours'),
+      request_date: moment(request_date).add(7, 'hours'),
       book_copy_id: null, // tạm null, sẽ cập nhật sau
       book_id,
       due_date

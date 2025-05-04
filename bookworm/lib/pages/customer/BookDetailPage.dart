@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auto_size_text/auto_size_text.dart';
@@ -73,13 +74,15 @@ class _BookDetailPageState extends State<BookDetailPage> {
 
   Future<void> _submitBorrowRequest(DateTime requestDate, DateTime dueDate) async {
     try {
+      final now = DateTime.now();
       final response = await http.post(
         Uri.parse('http://localhost:3002/api/borrowRequest'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'user_id': _currentUserId,
           'book_id': widget.book.id,
-          'request_date': requestDate.toIso8601String(),
+          'receive_date': requestDate.toIso8601String(),
+          'request_date': now.toIso8601String(),
           'due_date': dueDate.toIso8601String(),
         }),
       );

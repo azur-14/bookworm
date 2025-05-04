@@ -65,14 +65,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     }
   }
 
-  Future<void> _loadReturnRequests() async {
-    final res = await http.get(Uri.parse('http://localhost:3002/api/returnRequest'));
-    if (res.statusCode == 200) {
-      final List data = json.decode(res.body);
-      setState(() => _returns = data.map((e) => ReturnRequest.fromJson(e)).toList());
-    }
-  }
-
   ReturnRequest? _getReturn(BorrowRequest b) {
     try {
       return _returns.firstWhere((r) => r.borrowRequestId == b.id);
@@ -88,7 +80,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     if (r.status == 'pending') return 'Chờ duyệt';
     if (r.status == 'rejected') return 'Từ chối';
     if (r.status == 'approved' && ret == null) return 'Chờ nhận';
-    if (r.status=='received'&& ret == 'processing') {
+    if (r.status=='received' && ret != null && ret.status == 'processing') {
       return 'Đang mượn';
     }
     if (ret != null && ret.status == 'completed') {
@@ -144,18 +136,44 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     if (res.statusCode == 200) setState(() => b.status = newStatus);
   }
 
-  Future<void> _confirmReceive(BorrowRequest b) async {
-    final res = await http.post(
-      Uri.parse('http://localhost:3002/api/returnRequest'),
+  Future<void> _createReturnRequest(String borrowRequestId) async {
+    final url = Uri.parse('http://localhost:3002/api/returnRequest');
+    final body = {
+      'borrowRequestId': borrowRequestId,
+      'status': 'processing',
+      'returnDate': DateTime.now().toIso8601String(),
+    };
+
+    final response = await http.post(
+      url,
       headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'borrowRequestId': b.id,
-        'status': 'processing',
-        'returnDate': DateTime.now().toIso8601String(),
-      }),
+      body: json.encode(body),
     );
-    if (res.statusCode == 201) {
-      setState(() => _returns.add(ReturnRequest.fromJson(json.decode(res.body))));
+
+    if (response.statusCode == 201) {
+      final data = json.decode(response.body);
+      setState(() {
+        _returns.add(ReturnRequest.fromJson(data));
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã tạo yêu cầu trả')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi tạo yêu cầu trả: ${response.body}')),
+      );
+    }
+  }
+
+  Future<void> _loadReturnRequests() async {
+    final res = await http.get(Uri.parse('http://localhost:3002/api/returnRequest'));
+    if (res.statusCode == 200) {
+      final List data = json.decode(res.body);
+      setState(() => _returns = data.map((e) => ReturnRequest.fromJson(e)).toList());
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi tải returnRequest: ${res.body}')),
+      );
     }
   }
 
@@ -189,7 +207,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
             : null;
 
 // xác định trailing
-        late Widget trailing;
+        Widget trailing = const SizedBox();
 
         if (label == 'Chờ duyệt') {
           trailing = Wrap(spacing: 8, children: [
@@ -201,7 +219,10 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
             // Nếu đúng ngày nhận thì cho xác nhận hoặc hủy
             trailing = Wrap(spacing: 8, children: [
               TextButton(
-                onPressed: () => _confirmReceive(b),
+                onPressed: () async {
+                  await _updateBorrow(b, 'received');
+                  await _createReturnRequest(b.id!);
+                },
                 child: const Text('Xác nhận nhận'),
               ),
               TextButton(
@@ -231,7 +252,10 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                 child: const Text('Hủy'),
               ),
               TextButton(
-                onPressed: () => _updateBorrow(b, 'received'),
+                onPressed: () async {
+                  await _updateBorrow(b, 'received');
+                  await _createReturnRequest(b.id!);
+                },
                 child: const Text('Đã nhận'),
               ),
             ]);

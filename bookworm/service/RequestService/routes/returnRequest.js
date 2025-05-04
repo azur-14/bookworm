@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const { v4: uuidv4 } = require('uuid');
 const ReturnRequest = require('../models/ReturnRequest');
 const BorrowRequest = require('../models/BorrowRequest');
+const StatusHistory = require('../models/RequestStatusHistory');
 
 // lấy kết quả mượn sách của người dùng hiện tại
 router.get('/user/:userId', async (req, res) => {
@@ -24,6 +26,24 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('❌ Error fetching all return requests:', err);
     res.status(500).json({ error: 'Failed to fetch return requests' });
+  }
+});
+
+// Tạo returnRequest mới khi đã nhận sách
+router.post('/', async (req, res) => {
+  try {
+    const { borrowRequestId, returnDate, status } = req.body;
+    const newRequest = new ReturnRequest({
+      id: `r_${uuidv4()}`,
+      borrow_request_id: borrowRequestId,
+      return_date: returnDate ? new Date(returnDate) : new Date(),
+      status: status || 'processing',
+    });
+
+    await newRequest.save();
+    res.status(201).json(newRequest);
+  } catch (err) {
+    res.status(500).json({ message: 'Error creating return request', error: err.message });
   }
 });
 
