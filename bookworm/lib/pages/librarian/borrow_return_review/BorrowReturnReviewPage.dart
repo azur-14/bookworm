@@ -410,6 +410,56 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       },
     );
   }
+  /// Hiển thị dialog chứa danh sách RequestStatusHistory cho requestId
+  Future<void> _showHistoryDialog(String requestId) async {
+    try {
+      final histories = await fetchStatusHistory(requestId);
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text('Lịch sử thay đổi của $requestId'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: histories.isEmpty
+                ? const Text('Chưa có lịch sử thay đổi.')
+                : ListView.separated(
+              shrinkWrap: true,
+              itemCount: histories.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (_, i) {
+                final h = histories[i];
+                final timeStr = DateFormat('yyyy-MM-dd HH:mm')
+                    .format(h.changeTime);
+                return ListTile(
+                  leading: Icon(Icons.history, color: AppColors.primary),
+                  title: Text('${h.oldStatus} → ${h.newStatus}'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Thời gian: $timeStr'),
+                      Text('Thay đổi bởi: ${h.changedBy}'),
+                      if (h.reason.isNotEmpty)
+                        Text('Lý do: ${h.reason}'),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Đóng'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không tải được lịch sử: $e')),
+      );
+    }
+  }
 
   void _showBorrowReturnInfo(BorrowRequest b) {
     final ret = _getReturn(b);
@@ -726,8 +776,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   Widget _buildHistoryTab() {
     // 1. Widget thống kê
     final stats = _buildHistoryStats();
-
-    // 2. Danh sách gom Borrow+Return như trước
     final list = List<BorrowRequest>.from(_borrows)
       ..sort((a, b) => b.requestDate.compareTo(a.requestDate));
 
@@ -743,22 +791,14 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
             itemCount: list.length,
             itemBuilder: (_, i) {
               final b = list[i];
-              final r = _getReturn(b);
-              Color cardColor = AppColors.white;
-              if (r != null) {
-                if (r.status == 'overdue') cardColor = Colors.yellowAccent;
-                else if (r.condition?.isNotEmpty ?? false) cardColor = Colors.redAccent;
-              }
+              final ret = _getReturn(b);
 
               return Card(
-                color: cardColor,
+                color: AppColors.white,
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
-                  onTap: () => _showBorrowReturnInfo(b),
-                  leading: Icon(
-                    r != null ? Icons.swap_horiz : Icons.login,
-                    color: _statusColor(r != null ? 'Đã trả' : 'borrow'),
-                  ),
+                  onTap: () => _showHistoryDialog(b.id!),
+                  leading: Icon(Icons.swap_horiz, color: AppColors.primary),
                   title: Text('Request ${b.id}'),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -767,12 +807,12 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                       if (b.receiveDate != null)
                         Text('Received: ${DateFormat('yyyy-MM-dd').format(b.receiveDate!)}'),
                       Text('Due: ${DateFormat('yyyy-MM-dd').format(b.dueDate!)}'),
-                      if (r != null) ...[
+                      if (ret != null) ...[
                         const SizedBox(height: 8),
                         const Divider(),
-                        Text('Returned: ${DateFormat('yyyy-MM-dd').format(r.returnDate)}'),
-                        if (r.condition?.isNotEmpty ?? false)
-                          Text('Condition: ${r.condition}'),
+                        Text('Returned: ${DateFormat('yyyy-MM-dd').format(ret.returnDate)}'),
+                        if (ret.condition?.isNotEmpty ?? false)
+                          Text('Condition: ${ret.condition}'),
                       ],
                     ],
                   ),
