@@ -23,14 +23,41 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   int _historyYear = DateTime.now().year;
   int _historyMonth = DateTime.now().month;
   int _historyQuarter = ((DateTime.now().month - 1) ~/ 3) + 1;
-
+  String _statsFilter = 'Tất cả';
+  static const List<String> _statsFilterOptions = [
+    'Tất cả',
+    'Yêu cầu',        // pending
+    'Đã duyệt',       // approved
+    'Đã thanh toán',  // paid
+    'Đang sử dụng',   // using
+    'Hoàn thành', //completed
+    'Từ chối',        // rejected
+    'Đã hủy',         // cancelled
+  ];
+  static const Map<String, String> _labelToStatus = {
+    'Yêu cầu':       'pending',
+    'Đã duyệt':      'approved',
+    'Đã thanh toán': 'paid',
+    'Đang sử dụng':  'using',
+    'Hoàn thành': 'completed',
+    'Từ chối':       'rejected',
+    'Đã hủy':        'cancelled',
+  };
   @override
   void initState() {
     super.initState();
     _loadRequests();
     _searchCtl.addListener(() => setState(() {}));
   }
-
+  static const _tabs = [
+    {'status': 'pending',   'label': 'Yêu cầu'},
+    {'status': 'approved',  'label': 'Đã duyệt'},
+    {'status': 'paid',      'label': 'Đã thanh toán'},
+    {'status': 'using',     'label': 'Đang sử dụng'},
+    {'status': 'rejected',  'label': 'Từ chối'},
+    {'status': 'cancelled', 'label': 'Đã hủy'},
+    {'status': 'stats',     'label': 'Thống kê'},
+  ];
   Future<void> _loadRequests() async {
     try {
       final list = await fetchRoomBookingRequests();
@@ -226,189 +253,6 @@ class _BookingReviewPageState extends State<BookingReviewPage>
         a.endTime.isAfter(req.startTime));
   }
 
-  Color _badgeColor(String st) {
-    switch (st) {
-      case 'approved':
-        return Colors.green;
-      case 'pending':
-        return AppColors.primary;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  Widget _buildRequestCard(RoomBookingRequest r) {
-    final conflict = _hasConflict(r);
-    return Card(
-      color: conflict ? Colors.red.shade50 : AppColors.white,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: conflict ? Colors.red : Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(
-              child: Text(r.roomId,
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary)),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-              decoration: BoxDecoration(
-                color: _badgeColor(r.status).withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(r.status.toUpperCase(),
-                  style: TextStyle(
-                      color: _badgeColor(r.status),
-                      fontWeight: FontWeight.bold)),
-            ),
-          ]),
-          const SizedBox(height: 8),
-          Text(
-            '${DateFormat('yyyy-MM-dd HH:mm').format(r.startTime)} → ${DateFormat('HH:mm').format(r.endTime)}',
-          ),
-          const SizedBox(height: 4),
-          Text('User: ${r.userId}'),
-          Text('Mục đích: ${r.purpose}'),
-          const SizedBox(height: 12),
-          Row(children: [
-            ElevatedButton(
-              onPressed: conflict ? null : () => _updateStatus(r, 'approved'),
-              child: const Text('Approve'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            ),
-            const SizedBox(width: 8),
-            OutlinedButton(
-              onPressed: () => _updateStatus(r, 'rejected'),
-              child: const Text('Reject'),
-              style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red)),
-            ),
-          ]),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildOngoingCard(RoomBookingRequest r) {
-    return Card(
-      color: Colors.brown.shade50,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: AppColors.primary),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(
-              child: Text(r.roomId,
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary)),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text('ONGOING',
-                  style: TextStyle(
-                      color: AppColors.primary, fontWeight: FontWeight.bold)),
-            ),
-          ]),
-          const SizedBox(height: 8),
-          Text(
-            '${DateFormat('yyyy-MM-dd HH:mm').format(r.startTime)} → ${DateFormat('HH:mm').format(r.endTime)}',
-          ),
-          const SizedBox(height: 4),
-          Text('User: ${r.userId}'),
-          Text('Mục đích: ${r.purpose}'),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: () => _updateStatus(r, 'cancelled'),
-            child: const Text('Cancel'),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildPastCard(RoomBookingRequest r) {
-    final isRejected = r.status == 'rejected';
-    final badgeLabel = isRejected ? 'REJECTED' : 'PAST';
-    final badgeColor = isRejected ? Colors.red : Colors.grey;
-
-    return Card(
-      color: isRejected ? Colors.red.shade50 : AppColors.white,
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: badgeColor),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(
-              child: Text(r.roomId,
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary)),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-              decoration: BoxDecoration(
-                color: badgeColor.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(badgeLabel,
-                  style: TextStyle(
-                      color: badgeColor, fontWeight: FontWeight.bold)),
-            ),
-          ]),
-          const SizedBox(height: 8),
-          Text(
-            '${DateFormat('yyyy-MM-dd HH:mm').format(r.startTime)} → ${DateFormat('HH:mm').format(r.endTime)}',
-          ),
-          const SizedBox(height: 4),
-          Text('User: ${r.userId}'),
-          Text('Mục đích: ${r.purpose}'),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              OutlinedButton(
-                onPressed: null,
-                child: Text(badgeLabel),
-              ),
-              if (!isRejected) ...[
-                ElevatedButton(
-                  onPressed: () => _showInvoiceDialog(r),
-                  child: const Text('Hóa đơn'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ]),
-      ),
-    );
-  }
-
   Future<void> _updateStatus(RoomBookingRequest r, String newStatus) async {
     final url = Uri.parse(
         'http://localhost:3002/api/roomBookingRequest/${r.id}');
@@ -435,44 +279,28 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     _searchCtl.dispose();
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     final filter = _searchCtl.text.toLowerCase();
-    final pending = _pending
-        .where((r) =>
-    r.roomId.toLowerCase().contains(filter) ||
-        r.userId.toLowerCase().contains(filter))
-        .toList();
-    final ongoing = _ongoing
-        .where((r) =>
-    r.roomId.toLowerCase().contains(filter) ||
-        r.userId.toLowerCase().contains(filter))
-        .toList();
-    final historyList = _filteredPast
-        .where((r) =>
-    r.roomId.toLowerCase().contains(filter) ||
-        r.userId.toLowerCase().contains(filter))
-        .toList();
 
     return DefaultTabController(
-      length: 3,
+      length: _tabs.length, // =7
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
           backgroundColor: AppColors.primary,
-          title: const Text('Quản lý đặt phòng', style: TextStyle(color: AppColors.white)),
-          bottom: const TabBar(
-            indicatorColor: AppColors.white,
-            tabs: [
-              Tab(text: 'Yêu cầu'),
-              Tab(text: 'Đang mượn'),
-              Tab(text: 'Lịch sử'),
-            ],
+          title: const Text('Quản lý đặt phòng', style: TextStyle(color: Colors.white)),
+          bottom: TabBar(
+            isScrollable: true,
+            indicatorColor: Colors.white,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            tabs: _tabs.map((t) => Tab(text: t['label']!)).toList(),
           ),
         ),
         body: Column(
           children: [
+            // Search bar
             Padding(
               padding: const EdgeInsets.all(12),
               child: TextField(
@@ -480,100 +308,238 @@ class _BookingReviewPageState extends State<BookingReviewPage>
                 decoration: InputDecoration(
                   hintText: 'Tìm phòng hoặc user...',
                   prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   isDense: true,
                 ),
+                onChanged: (_) => setState(() {}),
               ),
             ),
+            // Nội dung theo tab
             Expanded(
               child: TabBarView(
-                children: [
-                  // Pending
-                  pending.isEmpty
-                      ? const Center(child: Text('Không có yêu cầu.'))
-                      : ListView(children: pending.map(_buildRequestCard).toList()),
+                children: _tabs.map((t) {
+                  final key = t['status']!;
 
-                  // Ongoing
-                  ongoing.isEmpty
-                      ? const Center(child: Text('Không có booking đang diễn ra.'))
-                      : ListView(children: ongoing.map(_buildOngoingCard).toList()),
+                  // Tab “Thống kê”
+                  if (key == 'stats') {
+                    // 1. Summary
+                    final total = _allRequests.length;
+                    final byStatus = {
+                      for (var tt in _tabs.where((e) => e['status'] != 'stats'))
+                        tt['status']!: _allRequests.where((r) => r.status == tt['status']).length
+                    };
 
-                  // Lịch sử + hóa đơn
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Row(children: [
+                    // 2. Lấy toàn bộ history rồi lọc
+                    final rawHistory = List<RoomBookingRequest>.from(_allRequests);
+                    final filteredHistory = (_statsFilter == 'Tất cả')
+                        ? rawHistory
+                        : rawHistory.where((r) => r.status == _labelToStatus[_statsFilter]).toList();
+
+                    return Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Tổng quan
+                          Text('Tổng booking: $total',
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 12),
+                          ...byStatus.entries.map((e) {
+                            final label = _tabs.firstWhere((tt) => tt['status'] == e.key)['label'];
+                            return Text('$label: ${e.value}', style: const TextStyle(fontSize: 16));
+                          }),
+                          const Divider(height: 32),
+
+                          // Dropdown lọc lịch sử
+                          DropdownButtonFormField<String>(
+                            value: _statsFilter,
+                            decoration: InputDecoration(
+                              labelText: 'Lọc lịch sử',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              isDense: true,
+                            ),
+                            items: _statsFilterOptions
+                                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                                .toList(),
+                            onChanged: (v) => setState(() => _statsFilter = v!),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Danh sách lịch sử sau lọc
                           Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: _historyFilter,
-                              decoration: InputDecoration(
-                                labelText: 'Xem theo',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                isDense: true,
-                              ),
-                              items: ['Tất cả','Ngày','Tháng','Quý','Năm']
-                                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                                  .toList(),
-                              onChanged: (v) {
-                                if (v != null) setState(() => _historyFilter = v);
-                              },
+                            child: filteredHistory.isEmpty
+                                ? const Center(child: Text('Không có lịch sử phù hợp.'))
+                                : ListView.builder(
+                              itemCount: filteredHistory.length,
+                              itemBuilder: (ctx, i) => _buildCardForStatus(filteredHistory[i]),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          if (_historyFilter == 'Ngày')
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () async {
-                                  final d = await showDatePicker(
-                                    context: context,
-                                    initialDate: _historyDate,
-                                    firstDate: DateTime(2000),
-                                    lastDate: DateTime.now(),
-                                  );
-                                  if (d != null) setState(() => _historyDate = d);
-                                },
-                                child: Text(DateFormat('yyyy-MM-dd').format(_historyDate)),
-                              ),
-                            )
-                          else if (_historyFilter == 'Tháng')
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () async {
-                                  final y = await showDatePicker(
-                                    context: context,
-                                    initialDate: DateTime(_historyYear, _historyMonth),
-                                    firstDate: DateTime(2000),
-                                    lastDate: DateTime.now(),
-                                    selectableDayPredicate: (_) => false,
-                                  );
-                                  if (y != null) setState(() {
-                                    _historyYear = y.year;
-                                    _historyMonth = y.month;
-                                  });
-                                },
-                                child: Text('${_historyYear}-${_historyMonth.toString().padLeft(2,'0')}'),
-                              ),
-                            )
-                          else
-                            const Spacer(),
-                        ]),
-                        const SizedBox(height: 16),
-                        Expanded(
-                          child: historyList.isEmpty
-                              ? const Center(child: Text('Không có lịch sử.'))
-                              : ListView.builder(
-                            itemCount: historyList.length,
-                            itemBuilder: (ctx, i) => _buildPastCard(historyList[i]),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Các tab booking bình thường
+                  final list = _allRequests.where((r) {
+                    final matchStatus = r.status == key;
+                    final matchSearch = filter.isEmpty
+                        || r.roomId.toLowerCase().contains(filter)
+                        || r.userId.toLowerCase().contains(filter);
+                    return matchStatus && matchSearch;
+                  }).toList();
+
+                  if (list.isEmpty) {
+                    return Center(child: Text('Không có: ${t['label']}'));
+                  }
+                  return ListView(
+                    children: list.map(_buildCardForStatus).toList(),
+                  );
+                }).toList(),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Trả về màu badge theo status
+  Color _badgeColor(String status) {
+    switch (status) {
+      case 'approved':
+        return Colors.green;
+      case 'pending':
+        return AppColors.primary;
+      case 'using':
+        return Colors.orange;
+      case 'paid':
+        return Colors.blue;
+      case 'rejected':
+        return Colors.red;
+      case 'cancelled':
+        return Colors.grey;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  /// Xây dựng Card cho từng booking dựa trên r.status và render nút action tương ứng
+  /// build card với luồng trạng thái đúng thứ tự
+  Widget _buildCardForStatus(RoomBookingRequest r) {
+    final now = DateTime.now();
+    final dateFmt = DateFormat('yyyy-MM-dd HH:mm');
+    final actions = <Widget>[];
+
+    switch (r.status) {
+      case 'pending':
+        actions.addAll([
+          ElevatedButton(
+            onPressed: () => _updateStatus(r, 'approved'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Approve'),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: () => _updateStatus(r, 'rejected'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red,
+              side: const BorderSide(color: Colors.red),
+            ),
+            child: const Text('Reject'),
+          ),
+        ]);
+        break;
+
+      case 'approved':
+      // Sau khi duyệt thì bước thanh toán
+        actions.add(
+          ElevatedButton(
+            onPressed: () => _updateStatus(r, 'paid'),
+            child: const Text('Xác nhận thanh toán'),
+          ),
+        );
+        break;
+
+      case 'paid':
+      // Trước giờ startTime: cho cancel; tới giờ trở đi: check-in
+        if (now.isBefore(r.startTime)) {
+          actions.add(
+            OutlinedButton(
+              onPressed: () => _updateStatus(r, 'cancelled'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+              ),
+              child: const Text('Hủy'),
+            ),
+          );
+        } else {
+          actions.add(
+            ElevatedButton(
+              onPressed: () => _updateStatus(r, 'using'),
+              child: const Text('Xác nhận sử dụng'),
+            ),
+          );
+        }
+        break;
+
+    // using, rejected, cancelled, stats không có action thêm
+      default:
+        break;
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: _badgeColor(r.status), width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    r.roomId,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: _badgeColor(r.status).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    r.status.toUpperCase(),
+                    style: TextStyle(
+                      color: _badgeColor(r.status),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 8),
+            Text('${dateFmt.format(r.startTime)} → ${DateFormat('HH:mm').format(r.endTime)}'),
+            const SizedBox(height: 4),
+            Text('User: ${r.userId}'),
+            Text('Mục đích: ${r.purpose}'),
+
+            // Buttons
+            if (actions.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Row(children: actions),
+            ],
           ],
         ),
       ),

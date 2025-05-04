@@ -85,11 +85,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     if (r.status=='received' && ret != null && ret.status == 'processing') {
       return 'Đang mượn';
     }
-    if (ret != null && ret.status == 'completed') {
-      if (ret.condition != null && ret.condition!.isNotEmpty) return 'Hư hao';
-      // nếu returned sau dueDate, vẫn xếp vào 'Đã trả'
-      return 'Đã trả';
-    }
+    if (ret != null && ret.status == 'completed') return 'Đã trả';
     return 'Không rõ';
   }
 
