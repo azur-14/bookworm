@@ -28,7 +28,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     'Tất cả',
     'Yêu cầu',        // pending
     'Đã duyệt',       // approved
-    'Đã thanh toán',  // paid
+    // paid
     'Đang sử dụng',   // using
     'Hoàn thành', //completed
     'Từ chối',        // rejected
@@ -37,7 +37,6 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   static const Map<String, String> _labelToStatus = {
     'Yêu cầu':       'pending',
     'Đã duyệt':      'approved',
-    'Đã thanh toán': 'paid',
     'Đang sử dụng':  'using',
     'Hoàn thành': 'completed',
     'Từ chối':       'rejected',
@@ -52,7 +51,6 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   static const _tabs = [
     {'status': 'pending',   'label': 'Yêu cầu'},
     {'status': 'approved',  'label': 'Đã duyệt'},
-    {'status': 'paid',      'label': 'Đã thanh toán'},
     {'status': 'using',     'label': 'Đang sử dụng'},
     {'status': 'rejected',  'label': 'Từ chối'},
     {'status': 'cancelled', 'label': 'Đã hủy'},
@@ -404,32 +402,30 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     );
   }
 
-  /// Trả về màu badge theo status
+  /// Trả về màu badge theo status, thêm 'finished'
   Color _badgeColor(String status) {
     switch (status) {
-      case 'approved':
-        return Colors.green;
-      case 'pending':
-        return AppColors.primary;
-      case 'using':
-        return Colors.orange;
-      case 'paid':
-        return Colors.blue;
-      case 'rejected':
-        return Colors.red;
-      case 'cancelled':
-        return Colors.grey;
-      default:
-        return Colors.grey;
+      case 'approved':   return Colors.orange;
+      case 'pending':    return AppColors.primary;
+      case 'using':      return Colors.green;
+      case 'finished':   return Colors.blueGrey;
+      case 'cancelled':  return Colors.red;
+      case 'rejected':   return Colors.red;
+      default:           return Colors.grey;
     }
   }
 
-  /// Xây dựng Card cho từng booking dựa trên r.status và render nút action tương ứng
-  /// build card với luồng trạng thái đúng thứ tự
   Widget _buildCardForStatus(RoomBookingRequest r) {
     final now = DateTime.now();
     final dateFmt = DateFormat('yyyy-MM-dd HH:mm');
     final actions = <Widget>[];
+
+    // Xác định xem quá hạn chưa (chỉ áp dụng khi đang sử dụng)
+    final bool isOverdue = r.status == 'using' && now.isAfter(r.endTime);
+
+    // Chọn màu nền & viền
+    final Color cardColor   = isOverdue ? Colors.red.shade50 : AppColors.white;
+    final Color borderColor = isOverdue ? Colors.red : _badgeColor(r.status);
 
     switch (r.status) {
       case 'pending':
@@ -452,47 +448,49 @@ class _BookingReviewPageState extends State<BookingReviewPage>
         break;
 
       case 'approved':
-      // Sau khi duyệt thì bước thanh toán
-        actions.add(
+        actions.addAll([
+          OutlinedButton(
+            onPressed: () => _updateStatus(r, 'cancelled'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red,
+              side: const BorderSide(color: Colors.red),
+            ),
+            child: const Text('Hủy'),
+          ),
+          const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () => _updateStatus(r, 'using'),
-            child: const Text('Xác nhận thanh toán'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Thanh toán'),
+          ),
+        ]);
+        break;
+
+      case 'using':
+        actions.add(
+          ElevatedButton(
+            onPressed: () => _updateStatus(r, 'finished'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.white,
+            ),
+            child: const Text('Hoàn thành'),
           ),
         );
         break;
 
-      case 'paid':
-      // Trước giờ startTime: cho cancel; tới giờ trở đi: check-in
-        if (now.isBefore(r.startTime)) {
-          actions.add(
-            OutlinedButton(
-              onPressed: () => _updateStatus(r, 'cancelled'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-              ),
-              child: const Text('Hủy'),
-            ),
-          );
-        } else {
-          actions.add(
-            ElevatedButton(
-              onPressed: () => _updateStatus(r, 'using'),
-              child: const Text('Xác nhận sử dụng'),
-            ),
-          );
-        }
-        break;
-
-    // using, rejected, cancelled, stats không có action thêm
       default:
         break;
     }
 
     return Card(
+      color: cardColor, // dùng màu nền động
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: _badgeColor(r.status), width: 1),
+        side: BorderSide(color: borderColor, width: 1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Padding(
@@ -500,7 +498,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // Header: Room ID + badge
             Row(
               children: [
                 Expanded(
@@ -516,13 +514,13 @@ class _BookingReviewPageState extends State<BookingReviewPage>
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                   decoration: BoxDecoration(
-                    color: _badgeColor(r.status).withOpacity(0.2),
+                    color: borderColor.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     r.status.toUpperCase(),
                     style: TextStyle(
-                      color: _badgeColor(r.status),
+                      color: borderColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -536,7 +534,6 @@ class _BookingReviewPageState extends State<BookingReviewPage>
             Text('User: ${r.userId}'),
             Text('Mục đích: ${r.purpose}'),
 
-            // Buttons
             if (actions.isNotEmpty) ...[
               const SizedBox(height: 12),
               Row(children: actions),
@@ -546,4 +543,6 @@ class _BookingReviewPageState extends State<BookingReviewPage>
       ),
     );
   }
+
+
 }
