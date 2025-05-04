@@ -450,7 +450,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     }
   }
   Future<void> _showCompleteReturnDialog(ReturnRequest r) async {
-    // 0. Chuẩn bị dữ liệu: tìm borrow & book trước, tránh firstWhere trong builder
+    // 1. Chuẩn bị borrow & book như trước
     final borrowList = _borrows.where((b) => b.id == r.borrowRequestId).toList();
     if (borrowList.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -469,23 +469,21 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     }
     final book = bookList.first;
 
-    // 1. Controllers & state local
+    // 2. Controllers
     final condCtl = TextEditingController(text: r.condition);
     String? imgBase64 = r.returnImageBase64;
     String amountStr = '';
 
-    // 2. Show dialog
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (_, setSt) {
-        // 3. Tính phí
+        // Tính phí (dù có thể không hiển thị với “Nguyên vẹn”)
         final int daysLate = DateTime.now()
             .difference(borrow.dueDate!)
             .inDays
             .clamp(0, 999)
             .toInt();
-        final int overdueFee = daysLate * overdueFeePerDay;
-
+        final int overdueFee   = daysLate * overdueFeePerDay;
         double damagePct;
         switch (_selectedState) {
           case 'Hư hao nhẹ':     damagePct = 10;  break;
@@ -493,16 +491,28 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
           case 'Mất':            damagePct = 100; break;
           default:               damagePct = 0;
         }
-        final double damageFee = (damagePct / 100) * book.price;
-        final double total     = overdueFee + damageFee;
+        final double damageFee  = (damagePct / 100) * book.price;
+        final double total      = overdueFee + damageFee;
 
-        return AlertDialog(
-          title: Text('Hoàn thành trả ${r.id}'),
-          content: SingleChildScrollView(
+        // Build nội dung dialog tùy theo state
+        Widget content;
+        if (_selectedState == 'Nguyên vẹn') {
+          // Chỉ dropdown chọn state
+          content = DropdownButtonFormField<String>(
+            value: _selectedState,
+            decoration: const InputDecoration(labelText: 'Tình trạng sách'),
+            items: states.map((s) =>
+                DropdownMenuItem(value: s, child: Text(s))
+            ).toList(),
+            onChanged: (v) => setSt(() => _selectedState = v!),
+          );
+        } else {
+          // UI đầy đủ như trước
+          content = SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Chọn tình trạng sách
+                // Dropdown state
                 DropdownButtonFormField<String>(
                   value: _selectedState,
                   decoration: const InputDecoration(labelText: 'Tình trạng sách'),
@@ -512,7 +522,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                   onChanged: (v) => setSt(() => _selectedState = v!),
                 ),
                 const SizedBox(height: 8),
-
                 // Chọn ảnh
                 ElevatedButton.icon(
                   icon: const Icon(Icons.image),
@@ -530,16 +539,14 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                   Image.memory(base64Decode(imgBase64!)),
                 ],
                 const Divider(),
-
-                // Hiển thị phí
+                // Thông tin phí
                 Text('Trễ: $daysLate ngày → ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
                 Text('Hư hại: $damagePct% của ${NumberFormat.decimalPattern().format(book.price)}₫ '
                     '→ ${NumberFormat.decimalPattern().format(damageFee)}₫'),
                 const Divider(),
                 Text('Tổng: ${NumberFormat.decimalPattern().format(total)}₫'),
                 const SizedBox(height: 8),
-
-                // Nhập tiền khách đưa
+                // Nhập “Khách đưa”
                 TextField(
                   decoration: const InputDecoration(labelText: 'Khách đưa (₫)'),
                   keyboardType: TextInputType.number,
@@ -547,36 +554,47 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                 ),
               ],
             ),
-          ),
+          );
+        }
+
+        return AlertDialog(
+          title: Text('Hoàn thành trả ${r.id}'),
+          content: content,
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
             ElevatedButton(
               onPressed: () async {
-                final double paid   = double.tryParse(amountStr) ?? total;
-                final double change = (paid - total).clamp(0, paid).toDouble();
+                // Với “Nguyên vẹn” ta không cần tính tiền trả
+                double paid   = 0;
+                double change = 0;
+                if (_selectedState != 'Nguyên vẹn') {
+                  paid   = double.tryParse(amountStr) ?? total;
+                  change = (paid - total).clamp(0, paid).toDouble();
+                }
 
-                // Tạo bill
+                // Tạo bill (nếu cần)
                 final newBill = Bill(
-                  id:                 'bill_${r.borrowRequestId}_${DateTime.now().millisecondsSinceEpoch}',
-                  requestId:          r.borrowRequestId,
-                  type:               'book',
-                  overdueDays:        daysLate,
-                  overdueFee:         overdueFee,
-                  damageFee:          damageFee,
-                  totalFee:           total,
-                  amountReceived:     paid,
-                  changeGiven:        change,
+                  id: 'bill_${r.borrowRequestId}_${DateTime.now().millisecondsSinceEpoch}',
+                  requestId: r.borrowRequestId,
+                  type: 'book',
+                  overdueDays: daysLate,
+                  overdueFee: overdueFee,
+                  damageFee: damageFee,
+                  totalFee: total,
+                  amountReceived: paid,
+                  changeGiven: change,
                 );
 
-                // Cập nhật local state
                 setState(() {
                   r.status            = 'completed';
                   r.condition         = condCtl.text.trim();
                   r.returnImageBase64 = imgBase64;
-                  _bills.add(newBill);
+                  if (_selectedState != 'Nguyên vẹn') {
+                    _bills.add(newBill);
+                  }
                 });
 
-                // Gọi API
+                // Gọi API cập nhật
                 await _updateBorrow(borrow, 'completed');
                 await http.put(
                   Uri.parse('http://localhost:3002/api/returnRequest/${r.id}/status'),
@@ -595,36 +613,40 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                     'newStatus': _mapConditionToCopyStatus(_selectedState),
                   }),
                 );
-                await _postBill(newBill);
+                if (_selectedState != 'Nguyên vẹn') {
+                  await _postBill(newBill);
+                }
 
                 Navigator.pop(ctx);
 
-                // Hiện hóa đơn phạt
-                showDialog(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('Hóa đơn phạt'),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Borrow ID: ${r.borrowRequestId}'),
-                        Text('Phí quá hạn: ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
-                        Text('Phí hư hại: ${NumberFormat.decimalPattern().format(damageFee)}₫'),
-                        const Divider(),
-                        Text('Tổng: ${NumberFormat.decimalPattern().format(total)}₫'),
-                        Text('Khách đưa: ${NumberFormat.decimalPattern().format(paid)}₫'),
-                        Text('Trả lại: ${NumberFormat.decimalPattern().format(change)}₫'),
+                // Hiện hóa đơn nếu có
+                if (_selectedState != 'Nguyên vẹn') {
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Hóa đơn phạt'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Borrow ID: ${r.borrowRequestId}'),
+                          Text('Phí quá hạn: ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
+                          Text('Phí hư hại: ${NumberFormat.decimalPattern().format(damageFee)}₫'),
+                          const Divider(),
+                          Text('Tổng: ${NumberFormat.decimalPattern().format(total)}₫'),
+                          Text('Khách đưa: ${NumberFormat.decimalPattern().format(paid)}₫'),
+                          Text('Trả lại: ${NumberFormat.decimalPattern().format(change)}₫'),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Đóng'),
+                        ),
                       ],
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Đóng'),
-                      ),
-                    ],
-                  ),
-                );
+                  );
+                }
               },
               child: const Text('Xác nhận'),
             ),
@@ -633,6 +655,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       }),
     );
   }
+
 
   void _sendOverdueEmail(ReturnRequest r) {
     ScaffoldMessenger.of(context).showSnackBar(
