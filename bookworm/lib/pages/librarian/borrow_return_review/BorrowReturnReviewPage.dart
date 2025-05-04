@@ -11,6 +11,8 @@ import 'package:bookworm/model/Bill.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../model/RequestStatusHistory.dart';
+
 class BorrowReturnReviewPage extends StatefulWidget {
   const BorrowReturnReviewPage({Key? key}) : super(key: key);
   @override
@@ -86,7 +88,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     if (r.status == 'pending') return 'Chờ duyệt';
     if (r.status == 'rejected') return 'Từ chối';
     if (r.status == 'approved' && ret == null) return 'Chờ nhận';
-    if (ret != null && (ret.status == 'processing' || ret.status == 'overdue')) {
+    if (r.status=='received'&& ret == 'processing') {
       return 'Đang mượn';
     }
     if (ret != null && ret.status == 'completed') {
@@ -97,6 +99,18 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     return 'Không rõ';
   }
 
+  Future<List<RequestStatusHistory>> fetchStatusHistory(String requestId) async {
+    final res = await http.get(
+        Uri.parse('http://localhost:3002/api/statusHistory/$requestId')
+    );
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body) as List;
+      return data
+          .map((e) => RequestStatusHistory.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    throw Exception('Failed to load status history');
+  }
   Color _statusColor(String label) {
     switch (label) {
       case 'Chờ duyệt':   return Colors.orange;
@@ -160,31 +174,93 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       itemCount: list.length,
       itemBuilder: (_, i) {
         final b = list[i];
+        // trước khi return, tính toán receiveDate logic:
+        final receiveDate = b.receiveDate;
+        final now = DateTime.now();
+        final bool hasReceive = receiveDate != null;
+        final bool isToday = hasReceive &&
+            now.year == receiveDate!.year &&
+            now.month == receiveDate.month &&
+            now.day == receiveDate.day;
+        final bool isPast = hasReceive && now.isAfter(receiveDate!);
+// nền đỏ nếu quá ngày nhận và đang ở tab Chờ nhận
+        final cardColor = label == 'Chờ nhận' && isPast
+            ? Colors.red.withOpacity(0.1)
+            : null;
+
+// xác định trailing
+        late Widget trailing;
+
+        if (label == 'Chờ duyệt') {
+          trailing = Wrap(spacing: 8, children: [
+            TextButton(onPressed: () => _updateBorrow(b, 'approved'), child: const Text('Approve')),
+            TextButton(onPressed: () => _updateBorrow(b, 'rejected'), child: const Text('Reject')),
+          ]);
+        } else if (label == 'Chờ nhận') {
+          if (isToday) {
+            // Nếu đúng ngày nhận thì cho xác nhận hoặc hủy
+            trailing = Wrap(spacing: 8, children: [
+              TextButton(
+                onPressed: () => _confirmReceive(b),
+                child: const Text('Xác nhận nhận'),
+              ),
+              TextButton(
+                onPressed: () => _updateBorrow(b, 'cancelled'),
+                child: const Text('Hủy'),
+              ),
+            ]);
+          } else if (isPast) {
+            // Nếu đã qua ngày nhận thì báo quá hạn + hủy
+            trailing = Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.warning, color: Colors.red),
+                const SizedBox(height: 4),
+                const Text('Quá ngày nhận', style: TextStyle(color: Colors.red)),
+                TextButton(
+                  onPressed: () => _updateBorrow(b, 'cancelled'),
+                  child: const Text('Hủy'),
+                ),
+              ],
+            );
+          } else {
+            // Trước ngày nhận: show ngày và cho hủy
+            trailing = Wrap(spacing: 8, children: [
+              TextButton(
+                onPressed: () => _updateBorrow(b, 'cancelled'),
+                child: const Text('Hủy'),
+              ),
+              TextButton(
+                onPressed: () => _updateBorrow(b, 'received'),
+                child: const Text('Đã nhận'),
+              ),
+            ]);
+          }
+        }
+
+// rồi mới return Card/ListTile:
         return Card(
+          color: cardColor,
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
+            onTap: () => _showBorrowDetail(b),
             leading: CircleAvatar(
               backgroundColor: _statusColor(label),
               child: Icon(_statusIcon(label), color: AppColors.white),
             ),
             title: Text(b.bookId),
-            subtitle: Text(
-              'User: ${b.userId}\n'
-                  'Ngày: ${DateFormat('yyyy-MM-dd').format(b.requestDate)}',
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('User: ${b.userId}'),
+                Text('Ngày yêu cầu: ${DateFormat('yyyy-MM-dd').format(b.requestDate)}'),
+                if (b.receiveDate != null)
+                  Text('Ngày nhận:    ${DateFormat('yyyy-MM-dd').format(b.receiveDate!)}'),
+                Text('Hạn trả:      ${DateFormat('yyyy-MM-dd').format(b.dueDate!)}'),
+              ],
             ),
-            trailing: Wrap(spacing: 8, children: [
-              if (label == 'Chờ duyệt') ...[
-                TextButton(onPressed: () => _updateBorrow(b, 'approved'), child: const Text('Approve')),
-                TextButton(onPressed: () => _updateBorrow(b, 'rejected'), child: const Text('Reject')),
-              ],if (label == 'Chờ nhận')
-        TextButton(
-        onPressed: () => _confirmReceive(b),
-        child: const Text('Xác nhận nhận'),
-        ),
-              if (label != 'Chờ duyệt' && label != 'Chờ nhận')
-                TextButton(onPressed: () => _showBorrowDetail(b), child: const Text('Xem')),
-            ]),
+            trailing: trailing,
           ),
         );
       },
@@ -406,37 +482,104 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Chi tiết Borrow ${b.id}'),
-        content: Text(
-          'User: ${b.userId}\n'
-              'Book: ${b.bookId}\n'
-              'Status: ${getCombinedStatus(b)}\n'
-              'Requested: ${DateFormat('yyyy-MM-dd HH:mm').format(b.requestDate)}',
+        content: SizedBox(
+          width: double.maxFinite,
+          // nạp lịch sử từ server
+          child: FutureBuilder<List<RequestStatusHistory>>(
+            future: fetchStatusHistory(b.id!),
+            builder: (ctx, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text('Error: ${snap.error}'));
+              }
+              final history = snap.data!;
+              return ListView(
+                shrinkWrap: true,
+                children: [
+                  // Thông tin cơ bản
+                  Text('User: ${b.userId}'),
+                  Text('Requested: ${DateFormat('yyyy-MM-dd HH:mm').format(b.requestDate)}'),
+                  if (b.receiveDate != null)
+                    Text('ReceiveDate: ${DateFormat('yyyy-MM-dd HH:mm').format(b.receiveDate!)}'),
+                  Text('DueDate: ${DateFormat('yyyy-MM-dd HH:mm').format(b.dueDate!)}'),
+                  const Divider(),
+                  const Text('Status change history:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  // Hiển thị từng bản ghi history
+                  ...history.map((h) => ListTile(
+                    dense: true,
+                    title: Text('${h.oldStatus} → ${h.newStatus}'),
+                    subtitle: Text(
+                        '${DateFormat('yyyy-MM-dd HH:mm').format(h.changeTime)}\n'
+                            'By: ${h.changedBy}${h.reason.isNotEmpty ? '\nReason: ${h.reason}' : ''}'
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  )),
+                ],
+              );
+            },
+          ),
         ),
-        actions: [TextButton(onPressed: ()=>Navigator.pop(context), child: const Text('Đóng'))],
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng')),
+        ],
       ),
     );
   }
 
   void _showReturnDetail(ReturnRequest r) {
-    Uint8List? img;
-    if (r.returnImageBase64!=null) img = base64Decode(r.returnImageBase64!);
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Chi tiết Return ${r.id}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Borrow ID: ${r.borrowRequestId}'),
-            Text('Returned: ${DateFormat('yyyy-MM-dd HH:mm').format(r.returnDate)}'),
-            if (r.condition!=null) Text('Condition: ${r.condition}'),
-            if (img!=null) ...[
-              const SizedBox(height:8),
-              Image.memory(img, width:100, height:100),
-            ],
-          ],
+        content: SizedBox(
+          width: double.maxFinite,
+          child: FutureBuilder<List<RequestStatusHistory>>(
+            future: fetchStatusHistory(r.id!), // lấy lịch sử thao tác
+            builder: (ctx, snap) {
+              if (snap.connectionState != ConnectionState.done)
+                return const Center(child: CircularProgressIndicator());
+              if (snap.hasError)
+                return Center(child: Text('Error: ${snap.error}'));
+
+              final history = snap.data!;
+              Uint8List? img = r.returnImageBase64 != null
+                  ? base64Decode(r.returnImageBase64!)
+                  : null;
+
+              return ListView(
+                shrinkWrap: true,
+                children: [
+                  // Thông tin cơ bản
+                  Text('Borrow ID: ${r.borrowRequestId}'),
+                  Text('Returned: ${DateFormat('yyyy-MM-dd HH:mm').format(r.returnDate)}'),
+                  if (r.condition != null) Text('Condition: ${r.condition}'),
+                  if (img != null) ...[
+                    const SizedBox(height: 8),
+                    Image.memory(img, width: 100, height: 100),
+                  ],
+                  const Divider(),
+                  const Text('Status History:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  // Danh sách lịch sử thay đổi
+                  ...history.map((h) => ListTile(
+                    dense: true,
+                    title: Text('${h.oldStatus} → ${h.newStatus}'),
+                    subtitle: Text(
+                        '${DateFormat('yyyy-MM-dd HH:mm').format(h.changeTime)}\n'
+                            'By: ${h.changedBy}'
+                            '${h.reason.isNotEmpty ? '\nReason: ${h.reason}' : ''}'
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  )),
+                ],
+              );
+            },
+          ),
         ),
-        actions: [TextButton(onPressed: ()=>Navigator.pop(context), child: const Text('Đóng'))],
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng')),
+        ],
       ),
     );
   }
