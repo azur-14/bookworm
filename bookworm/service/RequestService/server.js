@@ -8,6 +8,7 @@ const roomBookingRequestRoutes = require('./routes/roomBookingRequest');
 const borrowRequestRoutes = require('./routes/borrowRequest');
 const returnRequestRoutes = require('./routes/returnRequest');
 const statusHistoryRoutes = require('./routes/statusHistory')
+const billRoutes = require('./routes/bill');
 
 const app = express();
 const PORT = process.env.PORT;
@@ -24,7 +25,7 @@ app.use('/api/roomBookingRequest', roomBookingRequestRoutes);
 app.use('/api/borrowRequest', borrowRequestRoutes);
 app.use('/api/returnRequest', returnRequestRoutes);
 app.use('/api/requestStatusHistory', statusHistoryRoutes);
-
+app.use('/api/bill', billRoutes);
 
 // Khởi chạy server
 app.listen(PORT, () => {

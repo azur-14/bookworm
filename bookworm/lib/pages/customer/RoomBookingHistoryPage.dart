@@ -153,7 +153,7 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Mã hóa đơn: ${bill.id}'),
-            Text('Yêu cầu: ${bill.borrowRequestId}'),
+            Text('Yêu cầu: ${bill.requestId}'),
             Text(
               'Ngày lập: ${DateFormat('yyyy-MM-dd – kk:mm').format(bill.date)}',
             ),

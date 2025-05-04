@@ -91,7 +91,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
 
   Future<List<RequestStatusHistory>> fetchStatusHistory(String requestId) async {
     final res = await http.get(
-        Uri.parse('http://localhost:3002/api/statusHistory/$requestId')
+        Uri.parse('http://localhost:3002/api/requestStatusHistory/$requestId')
     );
     if (res.statusCode == 200) {
       final data = json.decode(res.body) as List;
@@ -139,7 +139,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     final body = {
       'borrowRequestId': borrowRequestId,
       'status': 'processing',
-      'returnDate': DateTime.now().toIso8601String(),
     };
 
     final response = await http.post(
@@ -160,6 +159,33 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lỗi tạo yêu cầu trả: ${response.body}')),
       );
+    }
+  }
+
+  Future<void> _postBill(Bill bill) async {
+    final url = Uri.parse('http://localhost:3002/api/bill');
+
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'id': bill.id,
+        'borrowRequestId': bill.requestId,
+        'type': bill.type,
+        'overdueDays': bill.overdueDays,
+        'overdueFee': bill.overdueFee,
+        'damageFee': bill.damageFee,
+        'totalFee': bill.totalFee,
+        'amountReceived': bill.amountReceived,
+        'changeGiven': bill.changeGiven,
+        'date': bill.date.toIso8601String(),
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      print('Gửi bill thành công!');
+    } else {
+      print('Lỗi gửi bill: ${response.body}');
     }
   }
 
@@ -331,10 +357,10 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
         builder: (_, setSt) {
           // Tính phí
           final borrow = _borrows.firstWhere((b) => b.id == r.borrowRequestId);
-          final due = borrow.dueDate ?? borrow.requestDate;
-          final daysLate = r.returnDate.difference(due).inDays.clamp(0, 999);
+          final due = borrow.dueDate;
+          final daysLate = DateTime.now().difference(due!).inDays.clamp(0, 999);
           final overdueFee = daysLate * overdueFeePerDay;
-          int damagePct;
+          double damagePct;
           switch (_selectedState) {
             case 'Hư hao nhẹ':     damagePct = 10;  break;
             case 'Hư tổn đáng kể': damagePct = 50;  break;
@@ -393,26 +419,43 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
               ElevatedButton(
-                onPressed: () {
-                  final paid = int.tryParse(amountStr) ?? total;
-                  final change = (paid - total).clamp(0, paid);
+                onPressed: () async {
+                  final double paid = double.tryParse(amountStr) ?? total;
+                  final double change = (paid - total).clamp(0, paid);
+
+                  final newBill = Bill(
+                    id: 'bill_${r.borrowRequestId}_${DateTime.now().millisecondsSinceEpoch}',
+                    requestId: r.borrowRequestId,
+                    type: 'book',
+                    overdueDays: daysLate,
+                    overdueFee: overdueFee,
+                    damageFee: damageFee,
+                    totalFee: total,
+                    amountReceived: paid,
+                    changeGiven: change,
+                  );
+
                   setState(() {
                     // cập nhật return
                     r.status = 'completed';
                     r.condition = condCtl.text.trim();
                     r.returnImageBase64 = imgBase64;
                     // tạo hóa đơn
-                    _bills.add(Bill(
-                      id: 'bill_${r.borrowRequestId}_${DateTime.now().millisecondsSinceEpoch}',
-                      borrowRequestId: r.borrowRequestId,
-                      overdueDays: daysLate,
-                      overdueFee: overdueFee,
-                      damageFee: damageFee,
-                      totalFee: total,
-                      amountReceived: paid,
-                      changeGiven: change,
-                    ));
+                    _bills.add(newBill);
                   });
+                  await _updateBorrow(borrow, 'completed');
+                  await http.put(
+                    Uri.parse('http://localhost:3002/api/returnRequest/${r.id}/status'),
+                    headers: {'Content-Type': 'application/json'},
+                    body: json.encode({
+                      'newStatus': 'completed',
+                      'changedBy': _userId,
+                      'reason': 'Hoàn thành trả sách',
+                      'condition': condCtl.text.trim(),
+                      'returnImageBase64': imgBase64,
+                    }),
+                  );
+                  await _postBill(newBill);
                   Navigator.pop(ctx);
                   // show hoá đơn
                   showDialog(
