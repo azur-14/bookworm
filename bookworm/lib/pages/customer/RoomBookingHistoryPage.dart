@@ -6,7 +6,6 @@ import 'package:bookworm/model/RoomBookingRequest.dart';
 import 'package:bookworm/model/Bill.dart';
 import 'package:bookworm/model/RequestStatusHistory.dart';
 import 'package:bookworm/theme/AppColor.dart';
-import 'PaymentScreen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -52,12 +51,24 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
 
   Future<List<RoomBookingRequest>> fetchRoomBookings(String userId) async {
     final res = await http.get(
-        Uri.parse('http://localhost:3002/api/roomBookingRequest/user/$userId'));
+      Uri.parse('http://localhost:3002/api/roomBookingRequest/user/$userId'),
+    );
     if (res.statusCode == 200) {
       final data = json.decode(res.body) as List;
       return data.map((r) => RoomBookingRequest.fromJson(r)).toList();
     }
     throw Exception('Failed to load booking requests');
+  }
+
+  Future<Bill?> fetchBill(String requestId) async {
+    final res = await http.get(
+      Uri.parse('http://localhost:3002/api/bills/by-request/$requestId'),
+    );
+    if (res.statusCode == 200) {
+      return Bill.fromJson(json.decode(res.body));
+    }
+    // nếu không có bill, trả về null
+    return null;
   }
 
   Room? getRoom(String id) {
@@ -68,13 +79,15 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
     }
   }
 
-  String formatDateTime(DateTime dt) => DateFormat('yyyy-MM-dd HH:mm').format(dt);
+  String formatDateTime(DateTime dt) =>
+      DateFormat('yyyy-MM-dd HH:mm').format(dt);
 
   Color statusColor(String status) {
     switch (status) {
       case 'pending':
         return Colors.orange;
       case 'approved':
+        return Colors.blueGrey;
       case 'ready':
         return Colors.green;
       case 'rejected':
@@ -104,7 +117,6 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
 
   Future<void> _updateBookingStatus(
       String requestId, String oldStatus, String newStatus) async {
-    // Update booking request
     final res = await http.put(
       Uri.parse('http://localhost:3002/api/roomBookingRequest/$requestId'),
       headers: {'Content-Type': 'application/json'},
@@ -113,7 +125,6 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
     if (res.statusCode != 200) {
       throw Exception('Không thể cập nhật trạng thái: ${res.body}');
     }
-    // Log history
     final history = RequestStatusHistory(
       requestId: requestId,
       requestType: 'room',
@@ -132,23 +143,11 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
     await _loadData();
   }
 
-  Future<Bill> _createBill(Bill bill) async {
-    final res = await http.post(
-      Uri.parse('http://localhost:3002/api/bills'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(bill.toJson()),
-    );
-    if (res.statusCode == 201) {
-      return Bill.fromJson(json.decode(res.body));
-    }
-    throw Exception('Lỗi khi tạo hóa đơn: ${res.body}');
-  }
-
   void _showBillPreview(Bill bill) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Hóa đơn đã xuất'),
+        title: const Text('Hóa đơn'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,7 +155,8 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
             Text('Mã hóa đơn: ${bill.id}'),
             Text('Yêu cầu: ${bill.borrowRequestId}'),
             Text(
-                'Ngày lập: ${DateFormat('yyyy-MM-dd – kk:mm').format(bill.date)}'),
+              'Ngày lập: ${DateFormat('yyyy-MM-dd – kk:mm').format(bill.date)}',
+            ),
             const Divider(),
             Text('Quá hạn: ${bill.overdueDays} ngày → ${bill.overdueFee}₫'),
             Text('Phí hư hỏng: ${bill.damageFee}₫'),
@@ -168,7 +168,10 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng'))
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          )
         ],
       ),
     );
@@ -184,121 +187,76 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
       itemBuilder: (_, i) {
         final req = list[i];
         final room = getRoom(req.roomId)!;
-        final now = DateTime.now();
 
-        // approved → payment
+        // pending → chỉ xem chi tiết
+        if (req.status == 'pending') {
+          return _bookingTile(req, room, trailing: TextButton(
+            onPressed: () => showDetail(req, room),
+            child: const Text('Xem'),
+          ));
+        }
+
+        // approved → Hủy + Xem hóa đơn
         if (req.status == 'approved') {
-          final overdueDays = now.isAfter(req.endTime)
-              ? now.difference(req.endTime).inDays
-              : 0;
-          final overdueFee = overdueDays * 10000;
-          final damageFee = req.purpose.contains('hư hỏng') ? 50000 : 0;
-          final totalFee = overdueFee + damageFee;
-
-          return Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              onTap: () => showDetail(req, room),
-              leading: CircleAvatar(
-                backgroundColor: statusColor(req.status),
-                child: Icon(statusIcon(req.status), color: Colors.white),
+          return _bookingTile(req, room, trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () => _updateBookingStatus(req.id, 'approved', 'cancelled'),
+                child: const Text('Hủy'),
               ),
-              title: Text(room.name),
-              subtitle: Text(
-                  '${formatDateTime(req.startTime)} → ${formatDateTime(req.endTime)}'),
-              trailing: ElevatedButton.icon(
-                icon: const Icon(Icons.payment),
-                label: Text('${(totalFee/1000).ceil()}K'),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PaymentScreen(
-                        amount: totalFee,
-                        onSuccess: () async {
-                          // after payment → ready
-                          await _updateBookingStatus(
-                              req.id, 'approved', 'ready');
-                          Navigator.pop(context);
-                        },
-                      ),
-                    ),
-                  );
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () async {
+                  final bill = await fetchBill(req.id);
+                  if (bill != null) _showBillPreview(bill);
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                ),
+                child: const Text('Xem hóa đơn'),
               ),
-            ),
-          );
+            ],
+          ));
         }
 
-        // ready → can cancel if more than 6h before start
+        // ready → chỉ Xem hóa đơn
         if (req.status == 'ready') {
-          final canCancel = now.isBefore(req.startTime.subtract(const Duration(hours: 6)));
-          return Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              onTap: () => showDetail(req, room),
-              leading: CircleAvatar(
-                backgroundColor: statusColor(req.status),
-                child: Icon(statusIcon(req.status), color: Colors.white),
-              ),
-              title: Text(room.name),
-              subtitle: Text('${formatDateTime(req.startTime)} → ${formatDateTime(req.endTime)}'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Nút Hủy (chỉ kích hoạt khi còn >6h)
-                  TextButton(
-                    onPressed: canCancel
-                        ? () => _updateBookingStatus(req.id, 'ready', 'cancelled')
-                        : null,
-                    child: const Text('Hủy'),
-                  ),
-                  const SizedBox(width: 8),
-                  // Luôn luôn hiện nút Xem
-                  TextButton(
-                    onPressed: () => showDetail(req, room),
-                    child: const Text('Xem'),
-                  ),
-                ],
-              ),
-            ),
-          );
+          return _bookingTile(req, room, trailing: TextButton(
+            onPressed: () async {
+              final bill = await fetchBill(req.id);
+              if (bill != null) _showBillPreview(bill);
+            },
+            child: const Text('Xem hóa đơn'),
+          ));
         }
 
-        // other statuses
-        return Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+
+        // rejected / cancelled → chỉ hiển thị status
+        return _bookingTile(req, room, trailing: Text(
+          req.status.toUpperCase(),
+          style: TextStyle(
+            color: statusColor(req.status),
+            fontWeight: FontWeight.bold,
           ),
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            onTap: () => showDetail(req, room),
-            leading: CircleAvatar(
-              backgroundColor: statusColor(req.status),
-              child: Icon(statusIcon(req.status), color: Colors.white),
-            ),
-            title: Text(room.name),
-            subtitle: Text(
-                '${formatDateTime(req.startTime)} → ${formatDateTime(req.endTime)}'),
-            trailing: Text(
-              req.status.toUpperCase(),
-              style: TextStyle(
-                  color: statusColor(req.status),
-                  fontWeight: FontWeight.bold),
-            ),
-          ),
-        );
+        ));
       },
+    );
+  }
+
+  Widget _bookingTile(RoomBookingRequest req, Room room, {required Widget trailing}) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        onTap: () => showDetail(req, room),
+        leading: CircleAvatar(
+          backgroundColor: statusColor(req.status),
+          child: Icon(statusIcon(req.status), color: Colors.white),
+        ),
+        title: Text(room.name),
+        subtitle:
+        Text('${formatDateTime(req.startTime)} → ${formatDateTime(req.endTime)}'),
+        trailing: trailing,
+      ),
     );
   }
 
@@ -321,7 +279,7 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
             Text('• Kết thúc: ${formatDateTime(req.endTime)}'),
             const SizedBox(height: 8),
             isCancelled
-                ? Text('Lý do huỷ: ${req.purpose}')
+                ? Text('Lý do hủy: ${req.purpose}')
                 : Text('Mục đích: ${req.purpose}'),
             const SizedBox(height: 8),
             Text('Trạng thái: ${req.status.toUpperCase()}',
@@ -329,8 +287,7 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
           ],
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text('Đóng'))
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng'))
         ],
       ),
     );
