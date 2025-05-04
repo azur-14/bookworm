@@ -6,25 +6,31 @@ import 'dart:convert';
 
 class ActivityLog {
   final String id;
-  final String userId;
-  final String userName;
-  final String action;
+  final String adminId;
+  final String actionType;
+  final String targetType;
+  final String targetId;
+  final String description;
   final DateTime timestamp;
 
   ActivityLog({
     required this.id,
-    required this.userId,
-    required this.userName,
-    required this.action,
+    required this.adminId,
+    required this.actionType,
+    required this.targetType,
+    required this.targetId,
+    required this.description,
     required this.timestamp,
   });
 
   factory ActivityLog.fromJson(Map<String, dynamic> json) {
     return ActivityLog(
       id: json['id'] ?? json['_id'],
-      userId: json['userId'],
-      userName: json['userName'],
-      action: json['action'],
+      adminId: json['adminId'],
+      actionType: json['actionType'],
+      targetType: json['targetType'],
+      targetId: json['targetId'],
+      description: json['description'] ?? '',
       timestamp: DateTime.parse(json['timestamp']),
     );
   }
@@ -32,9 +38,11 @@ class ActivityLog {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'userId': userId,
-      'userName': userName,
-      'action': action,
+      'adminId': adminId,
+      'actionType': actionType,
+      'targetType': targetType,
+      'targetId': targetId,
+      'description': description,
       'timestamp': timestamp.toIso8601String(),
     };
   }
@@ -143,14 +151,18 @@ class _ActivityLogAdminPageState extends State<ActivityLogAdminPage> {
                                 columnSpacing: 32,
                                 headingRowColor: MaterialStateProperty.all(AppColors.primary.withOpacity(0.1)),
                                 columns: const [
-                                  DataColumn(label: Text("Timestamp")),
-                                  DataColumn(label: Text("User")),
-                                  DataColumn(label: Text("Action")),
+                                  DataColumn(label: Text("Thời gian")),
+                                  DataColumn(label: Text("Người thực hiện")),
+                                  DataColumn(label: Text("Hành động")),
+                                  DataColumn(label: Text("Đối tượng")),
+                                  DataColumn(label: Text("Mô tả")),
                                 ],
                                 rows: logs.map((log) => DataRow(cells: [
                                   DataCell(Text(DateFormat('yyyy-MM-dd HH:mm').format(log.timestamp))),
-                                  DataCell(Text(log.userName)),
-                                  DataCell(Text(log.action)),
+                                  DataCell(Text(log.adminId)),
+                                  DataCell(Text(log.actionType)),
+                                  DataCell(Text('${log.targetType} (${log.targetId})')),
+                                  DataCell(Text(log.description)),
                                 ])).toList(),
                               ),
                             ),

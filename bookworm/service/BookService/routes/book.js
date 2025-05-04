@@ -63,18 +63,40 @@ router.post('/', async (req, res) => {
 });
 
 // update book
+// update book
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const updated = await Book.findOneAndUpdate(
-      { id },
-      req.body,
-      { new: true }
-    );
-    if (!updated) {
-      return res.status(404).json({ message: 'Book not found' });
+    const newTotal = req.body.total_quantity;
+
+    const existing = await Book.findOne({ id });
+    if (!existing) return res.status(404).json({ message: 'Book not found' });
+
+    const quantityDiff = newTotal - existing.total_quantity;
+
+    // Tạo thêm BookCopy nếu tăng số lượng
+    if (quantityDiff > 0) {
+      const newCopies = [];
+      const currentCount = await BookCopy.countDocuments({ book_id: id });
+
+      for (let i = 0; i < quantityDiff; i++) {
+        newCopies.push(new BookCopy({
+          id: `${id}-BC${currentCount + i}`,
+          book_id: id,
+          status: 'available',
+          timeCreate: new Date(),
+        }));
+      }
+      await BookCopy.insertMany(newCopies);
+
+      // Cập nhật available_quantity thêm số lượng mới
+      req.body.available_quantity = existing.available_quantity + quantityDiff;
     }
+
+    // Cập nhật sách
+    const updated = await Book.findOneAndUpdate({ id }, req.body, { new: true });
     res.json({ message: 'Book updated', book: updated });
+
   } catch (err) {
     res.status(400).json({ message: 'Lỗi khi cập nhật sách', error: err.message });
   }
