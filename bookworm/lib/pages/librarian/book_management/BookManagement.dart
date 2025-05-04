@@ -268,17 +268,6 @@ class _BookManagementPageState extends State<BookManagementPage> {
     throw Exception('Failed to load books');
   }
 
-  Future<void> addBookToServer(Book b) async {
-    final resp = await http.post(
-      Uri.parse('http://localhost:3003/api/books'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(b.toJson()),
-    );
-    if (resp.statusCode != 201) {
-      throw Exception('Add book failed: ${resp.body}');
-    }
-  }
-
   Future<void> deleteBookOnServer(String id) async {
     final resp = await http.delete(Uri.parse('http://localhost:3003/api/books/$id'));
     if (resp.statusCode != 200) {

@@ -5,6 +5,7 @@ const BorrowRequest = require('../models/BorrowRequest');
 const RequestStatusHistory = require('../models/RequestStatusHistory');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment');
+const nodemailer = require('nodemailer');
 
 // gửi yêu cầu mượn sách
 router.post('/', async (req, res) => {
@@ -143,6 +144,60 @@ router.put('/:id/status', async (req, res) => {
   } catch (err) {
     console.error('Status update error:', err);
     res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// gửi mail nhắc nhở quá hạn
+router.post('/send-overdue-email/:borrowId', async (req, res) => {
+  const { borrowId } = req.params;
+
+  try {
+    // 1. Tìm phiếu mượn
+    const request = await BorrowRequest.findOne({ id: borrowId });
+    if (!request) return res.status(404).json({ error: 'Không tìm thấy yêu cầu mượn' });
+
+    // 2. Lấy thông tin sách và người dùng
+    const [bookRes, userRes] = await Promise.all([
+      axios.get(`http://localhost:3003/api/books/${request.book_id}`),
+      axios.get(`http://localhost:3000/api/users/${request.user_id}`)
+    ]);
+
+    const bookTitle = bookRes.data?.title || 'Không rõ';
+    const email = userRes.data?.email;
+    const dueDate = new Date(request.due_date).toLocaleDateString('vi-VN');
+
+    if (!email) return res.status(400).json({ error: 'Không tìm thấy email người dùng' });
+
+    // 3. Cấu hình Nodemailer
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: 'nhomcnpm1@gmail.com', // phải trùng với 'from'
+        pass: 'abfk znlx ggfn ycpk', // App password (không phải mật khẩu thường)
+      },
+    });
+
+    const mailOptions = {
+      from: 'Thư viện SOA <nhomcnpm1@gmail.com>',
+      to: email,
+      subject: `Nhắc nhở trả sách: ${bookTitle}`,
+      text: `Chào bạn,
+
+Bạn đã quá hạn trả sách "${bookTitle}". Hạn trả là: ${dueDate}.
+
+Vui lòng đem trả sách sớm để tránh phát sinh phí trễ hạn.
+
+Trân trọng,
+Thư viện SOA`,
+    };
+
+    // 4. Gửi email
+    await transporter.sendMail(mailOptions);
+
+    res.json({ message: 'Đã gửi email nhắc nhở trễ hạn thành công' });
+  } catch (error) {
+    console.error('Lỗi gửi email:', error);
+    res.status(500).json({ message: 'Lỗi server', error: error.message });
   }
 });
 

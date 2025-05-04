@@ -169,11 +169,6 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
 
   String formatDate(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
 
-  /// Hủy borrow request: chuyển status thành cancelled
-  void cancelRequest(BorrowRequest r) {
-    setState(() => r.status = 'cancelled');
-  }
-
   void _showDetail(BorrowRequest r, Book b, String status, ReturnRequest? ret) {
     showDialog(
       context: context,
@@ -230,7 +225,7 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
         Widget trailing;
         if (combined == 'Chờ duyệt' || combined == 'Chờ nhận') {
           trailing = ElevatedButton(
-            onPressed: () => cancelRequest(r),
+            onPressed: () => cancelBorrowRequest(r),
             child: const Text('Hủy'),
           );
         } else {
@@ -322,4 +317,47 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
       return Image.network(book.image, height: 140, width: 100, fit: BoxFit.cover);
     }
   }
+
+  Future<void> cancelBorrowRequest(BorrowRequest r) async {
+    final borrowId = r.id!;
+    final bookCopyId = r.bookCopyId;
+
+    try {
+      // 1. Cập nhật trạng thái BorrowRequest
+      final borrowUrl = Uri.parse('http://localhost:3002/api/borrowRequest/$borrowId/status');
+      final borrowRes = await http.put(
+        borrowUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'newStatus': 'cancelled',
+          'changedBy': widget.userId,
+        }),
+      );
+
+      // 2. Cập nhật trạng thái BookCopy
+      final copyUrl = Uri.parse('http://localhost:3003/api/bookcopies/$bookCopyId/status');
+      final copyRes = await http.put(
+        copyUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'newStatus': 'available'}),
+      );
+
+      // 3. Kiểm tra thành công và cập nhật UI
+      if (borrowRes.statusCode == 200 && copyRes.statusCode == 200) {
+        setState(() => r.status = 'cancelled');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã hủy yêu cầu và cập nhật sách thành công.')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi hủy yêu cầu: ${borrowRes.body} / ${copyRes.body}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi khi gửi yêu cầu: $e')),
+      );
+    }
+  }
+
 }

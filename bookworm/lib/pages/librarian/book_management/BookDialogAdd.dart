@@ -205,7 +205,6 @@ class _BookDialogAddState extends State<BookDialogAdd> {
 
     try {
       await addBookToServer(newBook);
-      await addBookToServer(newBook);
       await _logAction(
         actionType: 'CREATE',
         targetId: newBook.title,

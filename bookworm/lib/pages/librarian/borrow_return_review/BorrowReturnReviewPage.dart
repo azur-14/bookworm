@@ -690,11 +690,10 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   }
 
 
-  void _sendOverdueEmail(ReturnRequest r) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Gửi email quá hạn'), backgroundColor: Colors.blue),
-    );
-    _logAction(
+  void _sendOverdueEmail(ReturnRequest r) async {
+    await sendOverdueEmail(r.borrowRequestId);
+
+    await _logAction(
       adminId: _userId ?? 'unknown_admin',
       actionType: 'SEND_EMAIL',
       targetId: r.borrowRequestId,
@@ -851,6 +850,32 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
         'description': description,
       }),
     );
+  }
+
+  Future<void> sendOverdueEmail(String borrowRequestId) async {
+    final url = Uri.parse('http://localhost:3002/api/send-overdue-email/$borrowRequestId');
+
+    try {
+      final response = await http.post(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        debugPrint('Email sent: ${data['message']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã gửi email nhắc nhở thành công')),
+        );
+      } else {
+        debugPrint('Lỗi gửi email: ${response.body}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi gửi email: ${response.body}')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Exception khi gửi email: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi gửi email: $e')),
+      );
+    }
   }
 }
 
