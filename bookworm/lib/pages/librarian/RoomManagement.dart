@@ -5,6 +5,7 @@ import 'package:bookworm/model/Room.dart';
 import 'package:bookworm/model/RoomBookingRequest.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RoomManagementPage extends StatefulWidget {
   const RoomManagementPage({Key? key}) : super(key: key);
@@ -16,6 +17,7 @@ class RoomManagementPage extends StatefulWidget {
 class _RoomManagementPageState extends State<RoomManagementPage> {
   late DateTime _currentTime;
   Timer? _timer;
+  String _adminId = '';
 
   final TextEditingController _searchController = TextEditingController();
   List<Room> _filteredRooms = [];
@@ -31,6 +33,10 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
       setState(() {
         _currentTime = DateTime.now();
       });
+    });
+
+    SharedPreferences.getInstance().then((prefs) {
+      _adminId = prefs.getString('userId') ?? 'unknown_admin';
     });
 
     _loadRooms().then((_) {
@@ -313,6 +319,13 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
                   setState(() {
                     room.fee = newFee;
                   });
+                  await _logAction(
+                    adminId: _adminId,
+                    actionType: 'EDIT',
+                    targetType: 'Room',
+                    targetId: room.id,
+                    description: 'Updated fee to $newFee for room ${room.name}',
+                  );
                   Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Cập nhật thành công')),
@@ -503,5 +516,26 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
     } catch (e) {
       print('Lỗi khi tải booking requests: $e');
     }
+  }
+
+  Future<void> _logAction({
+    required String adminId,
+    required String actionType,
+    required String targetType,
+    required String targetId,
+    required String description,
+  }) async {
+    final url = Uri.parse('http://localhost:3004/api/logs');
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'adminId': adminId,
+        'actionType': actionType,
+        'targetType': targetType,
+        'targetId': targetId,
+        'description': description,
+      }),
+    );
   }
 }

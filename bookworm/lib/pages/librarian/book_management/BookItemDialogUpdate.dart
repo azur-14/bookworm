@@ -4,6 +4,8 @@ import 'package:bookworm/model/BookItem.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 class BookItemDialogUpdate extends StatefulWidget {
   final BookItem bookItem;
@@ -20,10 +22,16 @@ class _BookItemDialogUpdateState extends State<BookItemDialogUpdate> {
   Shelf? selShelf;
   String status = 'available';
   String? damageUrl;
+  String _adminId = 'unknown_admin';
 
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        _adminId = prefs.getString('userId') ?? 'unknown_admin';
+      });
+    });
     _loadShelves();
     status = widget.bookItem.status;
     damageUrl = widget.bookItem.damageImage;
@@ -64,6 +72,11 @@ class _BookItemDialogUpdateState extends State<BookItemDialogUpdate> {
           onPressed: () async {
             try {
               await updateBookItem(widget.bookItem.id, selShelf?.id, status, damageUrl);
+              await _logAction(
+                actionType: 'UPDATE',
+                targetId: widget.bookItem.id.toString(),
+                description: 'Cập nhật BookItem ID ${widget.bookItem.id} với status "$status", shelf ${selShelf?.name ?? "none"}',
+              );
               Navigator.pop(context, true); // thông báo thành công
             } catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -135,5 +148,23 @@ class _BookItemDialogUpdateState extends State<BookItemDialogUpdate> {
     }
   }
 
+  Future<void> _logAction({
+    required String actionType,
+    required String targetId,
+    required String description,
+  }) async {
+    final url = Uri.parse('http://localhost:3002/api/activityLogs');
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'adminId': 'admin_update_item', // hoặc dùng ID thực nếu có login
+        'actionType': actionType,
+        'targetType': 'BookItem',
+        'targetId': targetId,
+        'description': description,
+      }),
+    );
+  }
 }
 

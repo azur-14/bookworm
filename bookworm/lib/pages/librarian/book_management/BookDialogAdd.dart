@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:bookworm/model/Book.dart';
 import 'package:bookworm/model/Category.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BookDialogAdd extends StatefulWidget {
   final List<Category> categories;
@@ -26,10 +27,16 @@ class _BookDialogAddState extends State<BookDialogAdd> {
 
   Category? selCat;
   Uint8List? imageBytes;
+  String _adminId = 'unknown_admin';
 
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        _adminId = prefs.getString('userId') ?? 'unknown_admin';
+      });
+    });
     titleCtl = TextEditingController();
     authorCtl = TextEditingController();
     pubCtl = TextEditingController();
@@ -198,6 +205,12 @@ class _BookDialogAddState extends State<BookDialogAdd> {
 
     try {
       await addBookToServer(newBook);
+      await addBookToServer(newBook);
+      await _logAction(
+        actionType: 'CREATE',
+        targetId: newBook.title,
+        description: 'Thêm sách mới: ${newBook.title} (${newBook.author})',
+      );
       Navigator.pop(context, true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -215,5 +228,24 @@ class _BookDialogAddState extends State<BookDialogAdd> {
     if (resp.statusCode != 201) {
       throw Exception('Add book failed: ${resp.body}');
     }
+  }
+
+  Future<void> _logAction({
+    required String actionType,
+    required String targetId,
+    required String description,
+  }) async {
+    final url = Uri.parse('http://localhost:3004/api/logs');
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'adminId': _adminId,
+        'actionType': actionType,
+        'targetType': 'Book',
+        'targetId': targetId,
+        'description': description,
+      }),
+    );
   }
 }

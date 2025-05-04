@@ -6,6 +6,7 @@ import 'package:bookworm/model/Bill.dart';
 import 'package:bookworm/theme/AppColor.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BookingReviewPage extends StatefulWidget {
   @override
@@ -16,6 +17,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     with SingleTickerProviderStateMixin {
   final TextEditingController _searchCtl = TextEditingController();
   List<RoomBookingRequest> _allRequests = [];
+  String _adminId = 'unknown_admin';
 
   // Lọc lịch sử
   String _historyFilter = 'Tất cả';
@@ -45,6 +47,9 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      _adminId = prefs.getString('userId') ?? 'unknown_admin';
+    });
     _loadRequests();
     _searchCtl.addListener(() => setState(() {}));
   }
@@ -146,6 +151,13 @@ class _BookingReviewPageState extends State<BookingReviewPage>
               );
               try {
                 final created = await _createBill(bill);
+                await _logAction(
+                  adminId: _adminId,
+                  actionType: 'CREATE',
+                  targetType: 'Bill',
+                  targetId: created.id,
+                  description: 'Xuất hóa đơn cho booking ${req.id}, tổng tiền: ${created.totalFee}₫',
+                );
                 Navigator.pop(context);
                 _showBillPreview(created);
               } catch (e) {
@@ -262,14 +274,22 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     );
     if (res.statusCode == 200) {
       setState(() => r.status = newStatus);
+
+      // Ghi log hành động
+      await _logAction(
+        adminId: _adminId,
+        actionType: 'UPDATE',
+        targetType: 'RoomBookingRequest',
+        targetId: r.id,
+        description: 'Cập nhật trạng thái thành "${newStatus}" cho booking phòng ${r.roomId}',
+      );
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Trạng thái đã chuyển → ${newStatus.toUpperCase()}'),
           backgroundColor: _badgeColor(newStatus),
         ),
       );
-    } else {
-      throw Exception('Không thể cập nhật: ${res.body}');
     }
   }
 
@@ -544,5 +564,24 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     );
   }
 
-
+  Future<void> _logAction({
+    required String adminId,
+    required String actionType,
+    required String targetType,
+    required String targetId,
+    required String description,
+  }) async {
+    final url = Uri.parse('http://localhost:3004/api/logs');
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'adminId': adminId,
+        'actionType': actionType,
+        'targetType': targetType,
+        'targetId': targetId,
+        'description': description,
+      }),
+    );
+  }
 }

@@ -223,6 +223,18 @@ class _SignInPageState extends State<SignInPage> {
                 await prefs.setString('userName', name);
                 await prefs.setString('userId', userId); // ✅ Lưu ID người dùng
 
+                await http.post(
+                  Uri.parse('http://localhost:3004/api/logs'),
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode({
+                    'adminId': userId,
+                    'actionType': 'LOGIN',
+                    'targetType': 'User',
+                    'targetId': userId,
+                    'description': 'User $name ($role) logged in',
+                  }),
+                );
+
                 Navigator.pop(context);
                 Navigator.pushReplacement(
                   context,

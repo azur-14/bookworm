@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:bookworm/model/Book.dart';
 import 'package:bookworm/model/Category.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BookDialogUpdate extends StatefulWidget {
   final Book book;
@@ -29,12 +30,18 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
   late TextEditingController priceCtl;
   late TextEditingController totalCtl;
   late TextEditingController availCtl;
+  String _adminId = 'unknown_admin';
 
   Uint8List? imageBytes;
 
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        _adminId = prefs.getString('userId') ?? 'unknown_admin';
+      });
+    });
     titleCtl = TextEditingController(text: widget.book.title);
     authorCtl = TextEditingController(text: widget.book.author);
     pubCtl = TextEditingController(text: widget.book.publisher);
@@ -225,6 +232,11 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
 
     try {
       await updateBookOnServer(updated);
+      await _logAction(
+        actionType: 'UPDATE',
+        targetId: updated.id,
+        description: 'Cập nhật sách "${updated.title}" (${updated.id})',
+      );
       Navigator.pop(context, true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -242,5 +254,24 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
     if (resp.statusCode != 200) {
       throw Exception('Update failed: ${resp.body}');
     }
+  }
+
+  Future<void> _logAction({
+    required String actionType,
+    required String targetId,
+    required String description,
+  }) async {
+    final url = Uri.parse('http://localhost:3002/api/activityLogs');
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'adminId': _adminId, // có thể đổi thành user thực tế nếu dùng login
+        'actionType': actionType,
+        'targetType': 'Book',
+        'targetId': targetId,
+        'description': description,
+      }),
+    );
   }
 }

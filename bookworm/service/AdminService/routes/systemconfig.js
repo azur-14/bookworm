@@ -28,4 +28,14 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+router.get('/:id', async (req, res) => {
+    try {
+      const config = await SystemConfig.findOne({ id: parseInt(req.params.id) });
+      if (!config) return res.status(404).json({ message: 'Config not found' });
+      res.json(config);
+    } catch (err) {
+      res.status(500).json({ message: 'Server error', error: err.message });
+    }
+});
+
 module.exports = router;

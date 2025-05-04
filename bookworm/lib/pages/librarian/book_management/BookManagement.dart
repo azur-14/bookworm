@@ -9,6 +9,7 @@ import 'BookDialogDetail.dart';
 import '../../../model/Book.dart';
 import '../../../model/Category.dart';
 import '../../../theme/AppColor.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BookManagementPage extends StatefulWidget {
   const BookManagementPage({super.key});
@@ -21,10 +22,16 @@ class _BookManagementPageState extends State<BookManagementPage> {
   final List<Book> _books = [];
   final List<Category> _categories = [];
   String _searchQuery = '';
+  String _adminId = 'unknown_admin';
 
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        _adminId = prefs.getString('userId') ?? 'unknown_admin';
+      });
+    });
     _loadData();
   }
 
@@ -50,7 +57,14 @@ class _BookManagementPageState extends State<BookManagementPage> {
       context: context,
       builder: (_) => BookDialogAdd(categories: _categories),
     );
-    if (result == true) _loadData();
+    if (result == true) {
+      await _logAction(
+        actionType: 'CREATE',
+        targetId: 'N/A', // Không có ID trước khi thêm, có thể bỏ qua
+        description: 'Thêm sách mới',
+      );
+      _loadData();
+    }
   }
 
   void _showUpdateBookDialog(Book book) async {
@@ -58,7 +72,14 @@ class _BookManagementPageState extends State<BookManagementPage> {
       context: context,
       builder: (_) => BookDialogUpdate(book: book, categories: _categories),
     );
-    if (result == true) _loadData();
+    if (result == true) {
+      await _logAction(
+        actionType: 'UPDATE',
+        targetId: book.id,
+        description: 'Cập nhật sách "${book.title}" (ID: ${book.id})',
+      );
+      _loadData();
+    }
   }
 
   void _showViewBookDialog(Book book) {
@@ -86,6 +107,12 @@ class _BookManagementPageState extends State<BookManagementPage> {
     );
     if (confirmed == true) {
       await deleteBookOnServer(book.id);
+      await deleteBookOnServer(book.id);
+      await _logAction(
+        actionType: 'DELETE',
+        targetId: book.id,
+        description: 'Xoá sách "${book.title}" (ID: ${book.id})',
+      );
       _loadData();
     }
   }
@@ -257,5 +284,24 @@ class _BookManagementPageState extends State<BookManagementPage> {
     if (resp.statusCode != 200) {
       throw Exception('Delete failed: ${resp.body}');
     }
+  }
+
+  Future<void> _logAction({
+    required String actionType,
+    required String targetId,
+    required String description,
+  }) async {
+    final url = Uri.parse('http://localhost:3002/api/activityLogs');
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'adminId': 'admin_book_manager', // hoặc thay bằng ID thực nếu có đăng nhập
+        'actionType': actionType,
+        'targetType': 'Book',
+        'targetId': targetId,
+        'description': description,
+      }),
+    );
   }
 }

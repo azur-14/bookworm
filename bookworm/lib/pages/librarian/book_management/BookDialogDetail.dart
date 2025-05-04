@@ -7,6 +7,7 @@ import 'package:bookworm/model/Shelf.dart';
 import 'package:bookworm/theme/AppColor.dart';
 import 'BookItemDialogUpdate.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BookDialogDetail extends StatefulWidget {
   final Book book;
@@ -21,12 +22,18 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
   final Set<String> _selectedItemIds = {};
   int? _selectedShelfId;
   bool _dragSelecting = false;
+  String _adminId = 'unknown_admin';
 
   final List<Shelf> _shelves = [];
 
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        _adminId = prefs.getString('userId') ?? 'unknown_admin';
+      });
+    });
     _loadShelves();
   }
 
@@ -132,7 +139,11 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
                                     // Update lại local sau khi update thành công
                                     final shelf = _shelves.firstWhere((s) => s.id == _selectedShelfId);
                                     shelf.currentCount += ids.length;
-
+                                    await _logAction(
+                                      actionType: 'UPDATE',
+                                      targetId: widget.book.id,
+                                      description: 'Gán ${ids.length} bản sao sách "${widget.book.title}" vào kệ ${shelf.name}',
+                                    );
                                     setState(() => _selectedItemIds.clear());
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(content: Text('Đã gán ${ids.length} bản sao vào ${shelf.name}')),
@@ -334,4 +345,22 @@ class _BookDialogDetailState extends State<BookDialogDetail> {
     }
   }
 
+  Future<void> _logAction({
+    required String actionType,
+    required String targetId,
+    required String description,
+  }) async {
+    final url = Uri.parse('http://localhost:3004/api/logs');
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'adminId': _adminId,
+        'actionType': actionType,
+        'targetType': 'BookCopy',
+        'targetId': targetId,
+        'description': description,
+      }),
+    );
+  }
 }

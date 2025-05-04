@@ -7,6 +7,7 @@ import 'UserTextField.dart';
 import 'UserPasswordField.dart';
 import 'package:http/http.dart' as http;
 import 'package:bookworm/theme/AppColor.dart'; // 👈 Thêm dòng này
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UserAddUpdateDialog extends StatefulWidget {
   final User? user; // null -> Add, not null -> Update
@@ -33,10 +34,17 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
   String? _base64Avatar;
   final List<String> _roles = ['librarian', 'customer'];
   final List<String> _statuses = ['active', 'block'];
+  String _adminId = 'unknown_admin';
 
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        _adminId = prefs.getString('userId') ?? 'unknown_admin';
+      });
+    });
+
     if (widget.user != null) {
       _nameCtl.text = widget.user!.name;
       _emailCtl.text = widget.user!.email;
@@ -102,7 +110,17 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
         await updateUser(user);
       }
 
-      widget.onSubmit(user); // callback để cập nhật giao diện bên ngoài
+      widget.onSubmit(user);
+      await _logAction(
+        adminId: _adminId,
+        actionType: widget.user == null ? 'CREATE' : 'UPDATE',
+        targetType: 'User',
+        targetId: user.id,
+        description: widget.user == null
+            ? 'Thêm người dùng mới: ${user.email} (${user.role})'
+            : 'Cập nhật người dùng: ${user.email} (${user.role})',
+      );
+// callback để cập nhật giao diện bên ngoài
       Navigator.pop(context);
     } catch (e) {
       _showError(e.toString());
@@ -276,6 +294,27 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
     } else {
       throw Exception('Failed to load user');
     }
+  }
+
+  Future<void> _logAction({
+    required String adminId,
+    required String actionType,
+    required String targetType,
+    required String targetId,
+    required String description,
+  }) async {
+    final url = Uri.parse('http://localhost:3004/api/logs');
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'adminId': adminId,
+        'actionType': actionType,
+        'targetType': targetType,
+        'targetId': targetId,
+        'description': description,
+      }),
+    );
   }
 
 }

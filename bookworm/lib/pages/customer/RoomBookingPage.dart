@@ -202,9 +202,9 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
 
                                           // 1. Kiểm tra booking
                                           final isBooked = bookings.any((b) {
-                                            final localStart = b.startTime.toLocal();
-                                            final localEnd = b.endTime.toLocal();
-                                            return b.status != 'rejected' &&
+                                            final localStart = b.startTime.subtract(const Duration(hours: 7));
+                                            final localEnd = b.endTime.subtract(const Duration(hours: 7));
+                                            return b.status != 'rejected' && b.status != 'cancelled' &&
                                                 localStart.isBefore(slotEnd) &&
                                                 localEnd.isAfter(slot);
                                           });

@@ -11,6 +11,7 @@ import 'UserAddUpdateDialog.dart';
 import 'UserViewDialog.dart';
 import 'UserDeleteDialog.dart';
 import 'SearchBar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 // /pages/user_management/user_management_page.dart
 
 class UserManagementPage extends StatefulWidget {
@@ -26,10 +27,16 @@ class _UserManagementPageState extends State<UserManagementPage> with SingleTick
   final List<User> _users = [];
   final TextEditingController _searchCtl = TextEditingController();
   String _searchQuery = '';
+  String _adminId = 'unknown_admin';
 
   @override
   void initState() {
     super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        _adminId = prefs.getString('userId') ?? 'unknown_admin';
+      });
+    });
     _currentTime = DateTime.now();
     _ticker = createTicker((_) {
       if (mounted) {
@@ -84,12 +91,24 @@ class _UserManagementPageState extends State<UserManagementPage> with SingleTick
   }
 
   void _addUser(User newUser) {
+    _logAction(
+      adminId: _adminId,
+      actionType: 'CREATE',
+      targetId: newUser.id,
+      description: 'Thêm người dùng: ${newUser.name} (${newUser.email})',
+    );
     setState(() {
       _users.add(newUser);
     });
   }
 
   void _updateUser(User updatedUser) {
+    _logAction(
+      adminId: _adminId,
+      actionType: 'UPDATE',
+      targetId: updatedUser.id,
+      description: 'Cập nhật người dùng: ${updatedUser.name} (${updatedUser.email})',
+    );
     setState(() {
       final index = _users.indexWhere((u) => u.id == updatedUser.id);
       if (index != -1) {
@@ -109,6 +128,12 @@ class _UserManagementPageState extends State<UserManagementPage> with SingleTick
             setState(() {
               _users.removeWhere((u) => u.id == user.id);
             });
+            await _logAction(
+              adminId: _adminId,
+              actionType: 'DELETE',
+              targetId: user.id,
+              description: 'Xoá người dùng: ${user.name} (${user.email})',
+            );
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Đã xoá người dùng')),
             );
@@ -231,4 +256,25 @@ class _UserManagementPageState extends State<UserManagementPage> with SingleTick
       ],
     );
   }
+
+  Future<void> _logAction({
+    required String adminId,
+    required String actionType,
+    required String targetId,
+    required String description,
+  }) async {
+    final url = Uri.parse('http://localhost:3004/api/logs');
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'adminId': adminId,
+        'actionType': actionType,
+        'targetType': 'User',
+        'targetId': targetId,
+        'description': description,
+      }),
+    );
+  }
+
 }

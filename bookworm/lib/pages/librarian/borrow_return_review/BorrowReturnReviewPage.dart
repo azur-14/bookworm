@@ -33,7 +33,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   List<Bill> _bills = [];
   String? _userId;
 
-  static const int overdueFeePerDay = 10000;    // 10k/ngày
+  int overdueFeePerDay = 0;    // 10k/ngày
   static const int damageFeePerPercent = 5000;  // 5k/% hư hại
 
   // Các label tab status (bỏ 'Trả quá hạn')
@@ -54,11 +54,17 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     _loadBorrowRequests();
     _loadReturnRequests();
     _loadBooks();
+    _loadConfig();
   }
 
   Future<void> _loadUserPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() => _userId = prefs.getString('userId'));
+  }
+
+  Future<void> _loadConfig() async {
+    final value = await fetchOverdueFeePerDay();
+    setState(() => overdueFeePerDay = value);
   }
 
   Future<void> _loadBorrowRequests() async {
@@ -92,6 +98,16 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       return _returns.firstWhere((r) => r.borrowRequestId == b.id);
     } catch (_) {
       return null;
+    }
+  }
+
+  Future<int> fetchOverdueFeePerDay() async {
+    final res = await http.get(Uri.parse('http://localhost:3004/api/systemconfig/2'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return int.tryParse(data['config_value']) ?? 10000;
+    } else {
+      throw Exception('Failed to load overdue_fee_per_day');
     }
   }
 
@@ -151,7 +167,15 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'newStatus': newStatus, 'changedBy': _userId}),
     );
-    if (res.statusCode == 200) setState(() => b.status = newStatus);
+    if (res.statusCode == 200) {
+      setState(() => b.status = newStatus);
+      await _logAction(
+        adminId: _userId ?? 'unknown_admin',
+        actionType: 'UPDATE',
+        targetId: b.id!,
+        description: 'Chuyển trạng thái phiếu mượn ${b.id} → $newStatus',
+      );
+    }
   }
 
   Future<void> _createReturnRequest(String borrowRequestId) async {
@@ -596,16 +620,20 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
 
                 // Gọi API cập nhật
                 await _updateBorrow(borrow, 'completed');
-                await http.put(
-                  Uri.parse('http://localhost:3002/api/returnRequest/${r.id}/status'),
-                  headers: {'Content-Type': 'application/json'},
-                  body: json.encode({
-                    'newStatus': 'completed',
-                    'changedBy': _userId,
-                    'condition': condCtl.text.trim(),
-                    'returnImageBase64': imgBase64,
-                  }),
-                );
+
+                if (_selectedState != 'Nguyên vẹn') {
+                  await http.put(
+                    Uri.parse('http://localhost:3002/api/returnRequest/${r.id}/status'),
+                    headers: {'Content-Type': 'application/json'},
+                    body: json.encode({
+                      'newStatus': 'completed',
+                      'changedBy': _userId,
+                      'condition': condCtl.text.trim(),
+                      'returnImageBase64': imgBase64,
+                    }),
+                  );
+                }
+
                 await http.put(
                   Uri.parse('http://localhost:3003/api/bookcopies/${borrow.bookCopyId}/status'),
                   headers: {'Content-Type': 'application/json'},
@@ -616,7 +644,12 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                 if (_selectedState != 'Nguyên vẹn') {
                   await _postBill(newBill);
                 }
-
+                await _logAction(
+                  adminId: _userId ?? 'unknown_admin',
+                  actionType: 'COMPLETE_RETURN',
+                  targetId: r.id!,
+                  description: 'Hoàn thành trả sách ${r.borrowRequestId} với trạng thái "$_selectedState"',
+                );
                 Navigator.pop(ctx);
 
                 // Hiện hóa đơn nếu có
@@ -660,6 +693,12 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   void _sendOverdueEmail(ReturnRequest r) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Gửi email quá hạn'), backgroundColor: Colors.blue),
+    );
+    _logAction(
+      adminId: _userId ?? 'unknown_admin',
+      actionType: 'SEND_EMAIL',
+      targetId: r.borrowRequestId,
+      description: 'Gửi email quá hạn cho phiếu mượn ${r.borrowRequestId}',
     );
   }
   Widget _buildHistoryStats() {
@@ -791,6 +830,26 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
           ),
         ),
       ]),
+    );
+  }
+
+  Future<void> _logAction({
+    required String adminId,
+    required String actionType,
+    required String targetId,
+    required String description,
+  }) async {
+    final url = Uri.parse('http://localhost:3004/api/logs');
+    await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'adminId': adminId,
+        'actionType': actionType,
+        'targetType': 'BorrowRequest',
+        'targetId': targetId,
+        'description': description,
+      }),
     );
   }
 }

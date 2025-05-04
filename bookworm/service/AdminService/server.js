@@ -4,7 +4,8 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
- const systemconfigRoutes = require('./routes/systemconfig');
+const systemconfigRoutes = require('./routes/systemconfig');
+const activityLogRoutes = require('./routes/log');
 
 const app = express();
 const PORT = process.env.PORT;
@@ -17,7 +18,8 @@ app.use(bodyParser.json());
 connectDB();
 
 // Routes
- app.use('/api/systemConfig', systemconfigRoutes);
+app.use('/api/systemConfig', systemconfigRoutes);
+app.use('/api/logs', activityLogRoutes);
 
 // Khởi chạy server
 app.listen(PORT, () => {
