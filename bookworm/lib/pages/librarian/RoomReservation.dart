@@ -455,7 +455,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
       // Sau khi duyệt thì bước thanh toán
         actions.add(
           ElevatedButton(
-            onPressed: () => _updateStatus(r, 'paid'),
+            onPressed: () => _updateStatus(r, 'using'),
             child: const Text('Xác nhận thanh toán'),
           ),
         );
