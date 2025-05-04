@@ -88,176 +88,50 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
   }
 
   Future<void> _showViewRoomDialog(Room room) async {
-    List<RoomBookingRequest> requests =
-    List.from(_roomBookingRequests[room.id] ?? []);
-    requests.sort((a, b) {
-      if (a.status == 'pending' && b.status != 'pending') return -1;
-      if (a.status != 'pending' && b.status == 'pending') return 1;
-      return 0;
-    });
-
     await showDialog(
       context: context,
       builder: (context) {
-        return StatefulBuilder(builder: (context, setStateDialog) {
-          return AlertDialog(
-            insetPadding:
-            const EdgeInsets.symmetric(horizontal: 50, vertical: 24),
-            elevation: 10,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            title: Row(
-              children: [
-                const Icon(Icons.visibility_outlined, color: Colors.brown),
-                const SizedBox(width: 8),
-                Text('View Room',
-                    style: TextStyle(
-                        color: Colors.brown[700],
-                        fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Container(
-                width: 500,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildReadOnlyField('ID', room.id),
-                    _buildReadOnlyField('Name', room.name),
-                    _buildReadOnlyField('Floor', room.floor),
-                    _buildReadOnlyField(
-                        'Capacity', room.capacity.toString()),
-                    _buildReadOnlyField('Fee per hour', room.fee.toString()),
-                    _buildReadOnlyField('Status', _getRoomStatus(room)),
-                    const SizedBox(height: 20),
-                    const Text('Booking Requests',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    requests.isNotEmpty
-                        ? Column(
-                      children: requests.map((request) {
-                        final durationMinutes = request.endTime
-                            .difference(request.startTime)
-                            .inMinutes;
-                        final durationHours = durationMinutes / 60;
-                        final totalFee =
-                            durationHours * room.fee;
-                        return Container(
-                          margin:
-                          const EdgeInsets.symmetric(vertical: 4),
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                                  children: [
-                                    Text('User ID: ${request.userId}'),
-                                    Text(
-                                        'Purpose: ${request.purpose}'),
-                                    Text(
-                                      'Request Time: ${DateFormat('hh:mm a, MMM dd, yyyy').format(request.requestTime)}',
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.black54),
-                                    ),
-                                    Text(
-                                      'Start: ${DateFormat('hh:mm a, MMM dd, yyyy').format(request.startTime)}',
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.black54),
-                                    ),
-                                    Text(
-                                      'End: ${DateFormat('hh:mm a, MMM dd, yyyy').format(request.endTime)}',
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.black54),
-                                    ),
-                                    Text(
-                                        'Status: ${request.status}',
-                                        style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight:
-                                            FontWeight.bold)),
-                                    Text(
-                                        'Total Fee: ${totalFee.toStringAsFixed(0)}',
-                                        style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.blueGrey)),
-                                  ],
-                                ),
-                              ),
-                              if (request.status == 'pending')
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.check,
-                                          color: Colors.green),
-                                      onPressed: () {
-                                        // giả lập duyệt
-                                        setStateDialog(
-                                                () => request.status =
-                                            'approved');
-                                        setState(() {});
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                              content: Text(
-                                                  'Giả lập: Đã duyệt yêu cầu ${request.id}')),
-                                        );
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.close,
-                                          color: Colors.red),
-                                      onPressed: () {
-                                        // giả lập từ chối
-                                        setStateDialog(
-                                                () => request.status =
-                                            'rejected');
-                                        setState(() {});
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                              content: Text(
-                                                  'Giả lập: Đã từ chối yêu cầu ${request.id}')),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    )
-                        : const Text('No booking requests.'),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.brown[700],
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text('CLOSE'),
-              ),
+        return AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 50, vertical: 24),
+          elevation: 10,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              const Icon(Icons.visibility_outlined, color: Colors.brown),
+              const SizedBox(width: 8),
+              Text('View Room',
+                  style: TextStyle(
+                      color: Colors.brown[700], fontWeight: FontWeight.bold)),
             ],
-          );
-        });
+          ),
+          content: SingleChildScrollView(
+            child: Container(
+              width: 500,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildReadOnlyField('ID', room.id),
+                  _buildReadOnlyField('Name', room.name),
+                  _buildReadOnlyField('Floor', room.floor),
+                  _buildReadOnlyField('Capacity', room.capacity.toString()),
+                  _buildReadOnlyField('Fee per hour', room.fee.toString()),
+                  _buildReadOnlyField('Status', _getRoomStatus(room)),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.brown[700],
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('CLOSE'),
+            ),
+          ],
+        );
       },
     );
   }

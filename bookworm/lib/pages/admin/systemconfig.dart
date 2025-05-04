@@ -121,8 +121,7 @@ class _SystemConfigPageState extends State<SystemConfigPage> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _buildField('damage_fee_percent', 'Phí hư hỏng', '%'),
-                      // **Chỉ khác ở dòng này:**
+                      // Đã bỏ _buildField('damage_fee_percent', 'Phí hư hỏng', '%'),
                       _buildField('overdue_fee_per_day', 'Phí trễ hạn', 'VNĐ/ngày'),
                       const SizedBox(height: 24),
                       Text(

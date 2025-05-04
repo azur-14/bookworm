@@ -40,7 +40,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     'Yêu cầu':       'pending',
     'Đã duyệt':      'approved',
     'Đang sử dụng':  'using',
-    'Hoàn thành': 'completed',
+    'Hoàn thành': 'finished',
     'Từ chối':       'rejected',
     'Đã hủy':        'cancelled',
   };
