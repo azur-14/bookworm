@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:bookworm/model/Book.dart';
@@ -46,10 +46,45 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
   }
 
   // === Giả lập các hàm fetch để code compile ===
-  Future<List<BookItem>> fetchBookItems() async => [];
-  Future<List<Book>> fetchBooks() async => [];
-  Future<List<BorrowRequest>> fetchBorrowRequests(String userId) async => [];
-  Future<List<ReturnRequest>> fetchReturnRequests(String userId) async => [];
+  Future<List<BookItem>> fetchBookItems() async {
+    final res = await http.get(Uri.parse('http://localhost:3003/api/bookcopies'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<BookItem>.from(data.map((e) => BookItem.fromJson(e)));
+    } else {
+      throw Exception('Failed to load book items');
+    }
+  }
+
+  Future<List<Book>> fetchBooks() async {
+    final res = await http.get(Uri.parse('http://localhost:3003/api/books'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<Book>.from(data.map((e) => Book.fromJson(e)));
+    } else {
+      throw Exception('Failed to load books');
+    }
+  }
+
+  Future<List<BorrowRequest>> fetchBorrowRequests(String userId) async {
+    final res = await http.get(Uri.parse('http://localhost:3002/api/borrowRequest/user/$userId'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<BorrowRequest>.from(data.map((e) => BorrowRequest.fromJson(e)));
+    } else {
+      throw Exception('Failed to load borrow requests');
+    }
+  }
+
+  Future<List<ReturnRequest>> fetchReturnRequests(String userId) async {
+    final res = await http.get(Uri.parse('http://localhost:3002/api/returnRequest/user/$userId'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return List<ReturnRequest>.from(data.map((e) => ReturnRequest.fromJson(e)));
+    } else {
+      throw Exception('Failed to load return requests');
+    }
+  }
 
   List<BookItem> getBookItemsUsedInBorrowRequests(
       List<BorrowRequest> requests,
