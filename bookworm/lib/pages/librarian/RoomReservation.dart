@@ -68,8 +68,8 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     final overdueDays =
     now.isAfter(req.endTime) ? now.difference(req.endTime).inDays : 0;
     final overdueFee = overdueDays * 10000; // 10k/ngày
-    final damageFee = req.purpose.contains('hư hỏng') ? 50000 : 0;
-    final totalFee = overdueFee + damageFee;
+    final double damageFee = req.purpose.contains('hư hỏng') ? 50000 : 0;
+    final double totalFee = overdueFee + damageFee;
 
     final amountCtl = TextEditingController();
     showDialog(
@@ -106,11 +106,12 @@ class _BookingReviewPageState extends State<BookingReviewPage>
           ),
           ElevatedButton(
             onPressed: () async {
-              final paid = int.tryParse(amountCtl.text.trim()) ?? 0;
+              final paid = double.tryParse(amountCtl.text.trim()) ?? 0;
               final change = paid - totalFee;
               final bill = Bill(
                 id: DateTime.now().millisecondsSinceEpoch.toString(),
-                borrowRequestId: req.id,
+                requestId: req.id,
+                type: 'room',
                 overdueDays: overdueDays,
                 overdueFee: overdueFee,
                 damageFee: damageFee,
@@ -145,7 +146,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Mã hóa đơn: ${bill.id}'),
-            Text('Yêu cầu: ${bill.borrowRequestId}'),
+            Text('Yêu cầu: ${bill.requestId}'),
             Text('Ngày: ${DateFormat('yyyy-MM-dd – kk:mm').format(bill.date)}'),
             const Divider(),
             Text('Quá hạn: ${bill.overdueDays} ngày → ${bill.overdueFee}₫'),

@@ -32,11 +32,10 @@ router.get('/', async (req, res) => {
 // Tạo returnRequest mới khi đã nhận sách
 router.post('/', async (req, res) => {
   try {
-    const { borrowRequestId, returnDate, status } = req.body;
+    const { borrowRequestId, status } = req.body;
     const newRequest = new ReturnRequest({
       id: `r_${uuidv4()}`,
       borrow_request_id: borrowRequestId,
-      return_date: returnDate ? new Date(returnDate) : new Date(),
       status: status || 'processing',
     });
 
@@ -44,6 +43,39 @@ router.post('/', async (req, res) => {
     res.status(201).json(newRequest);
   } catch (err) {
     res.status(500).json({ message: 'Error creating return request', error: err.message });
+  }
+});
+
+// Cập nhật trạng thái ReturnRequest và lưu lịch sử
+router.put('/:id/status', async (req, res) => {
+  const { newStatus, changedBy, reason, condition, returnImageBase64 } = req.body;
+
+  try {
+    const ret = await ReturnRequest.findOne({ id: req.params.id });
+    if (!ret) return res.status(404).json({ message: 'ReturnRequest not found' });
+
+    const oldStatus = ret.status;
+    ret.status = newStatus;
+    if (condition !== undefined) ret.condition = condition;
+    if (returnImageBase64 !== undefined) ret.return_image = returnImageBase64;
+    ret.return_date = new Date();
+    await ret.save();
+
+    const history = new StatusHistory({
+      requestId: ret.id,
+      requestType: 'return',
+      oldStatus: oldStatus,
+      newStatus: newStatus,
+      changedBy: changedBy,
+      changeTime: new Date(),
+      reason: reason || '',
+    });
+    await history.save();
+
+    res.status(200).json(ret);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Error updating return request' });
   }
 });
 

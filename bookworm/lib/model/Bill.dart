@@ -1,20 +1,22 @@
 class Bill {
   final String id;
-  final String borrowRequestId;
-  final int overdueDays;
-  final int overdueFee;    // VND
-  final int damageFee;     // VND
-  final int totalFee;      // VND
-  final int amountReceived;// VND khách đưa
-  final int changeGiven;   // VND trả lại
+  final String requestId;
+  final String type;
+  final int? overdueDays;
+  final int? overdueFee;    // VND
+  final double? damageFee;     // VND
+  final double totalFee;      // VND
+  final double amountReceived;// VND khách đưa
+  final double changeGiven;   // VND trả lại
   final DateTime date;     // ngày lập hóa đơn
 
   Bill({
     required this.id,
-    required this.borrowRequestId,
-    required this.overdueDays,
-    required this.overdueFee,
-    required this.damageFee,
+    required this.requestId,
+    required this.type,
+    this.overdueDays,
+    this.overdueFee,
+    this.damageFee,
     required this.totalFee,
     required this.amountReceived,
     required this.changeGiven,
@@ -23,10 +25,11 @@ class Bill {
 
   factory Bill.fromJson(Map<String, dynamic> json) => Bill(
     id: json['id'],
-    borrowRequestId: json['borrow_request_id'],
-    overdueDays: json['overdue_days'],
-    overdueFee: json['overdue_fee'],
-    damageFee: json['damage_fee'],
+    requestId: json['request_id'],
+    type: json['type'],
+    overdueDays: (json['overdue_days'] as num?)?.toInt() ?? 0,
+    overdueFee: (json['overdue_fee'] as num?)?.toInt() ?? 0,
+    damageFee: (json['damage_fee'] as num?)?.toDouble() ?? 0.0,
     totalFee: json['total_fee'],
     amountReceived: json['amount_received'],
     changeGiven: json['change_given'],
@@ -35,7 +38,7 @@ class Bill {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'borrow_request_id': borrowRequestId,
+    'borrow_request_id': requestId,
     'overdue_days': overdueDays,
     'overdue_fee': overdueFee,
     'damage_fee': damageFee,
