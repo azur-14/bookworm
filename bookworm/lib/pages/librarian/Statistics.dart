@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:bookworm/theme/AppColor.dart';
 import 'package:bookworm/model/Bill.dart';
-
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 /// Trang Thống kê phiếu phạt & doanh thu đặt phòng (dữ liệu giả lập)
 class StatsPage extends StatefulWidget {
   const StatsPage({Key? key}) : super(key: key);
@@ -12,62 +13,24 @@ class StatsPage extends StatefulWidget {
 }
 
 class _StatsPageState extends State<StatsPage> {
-  late List<Bill> bills;
+  List<Bill> bills = [];
 
   @override
   void initState() {
     super.initState();
-    bills = _generateMockBills();
+    _loadBills();
   }
 
-  // ---- Mock data ----
-  List<Bill> _generateMockBills() {
-    return [
-      // Hóa đơn phòng
-      Bill(
-        id: 'room_001',
-        requestId: 'res_1001',
-        type: 'room',
-        totalFee: 500000,
-        amountReceived: 500000,
-        changeGiven: 0,
-        date: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-      Bill(
-        id: 'room_002',
-        requestId: 'res_1002',
-        type: 'room',
-        totalFee: 750000,
-        amountReceived: 800000,
-        changeGiven: 50000,
-        date: DateTime.now().subtract(const Duration(days: 1)),
-      ),
-      // Phiếu phạt sách
-      Bill(
-        id: 'book_001',
-        requestId: 'bor_2001',
-        type: 'book',
-        overdueDays: 3,
-        overdueFee: 30000,
-        damageFee: 50000,
-        totalFee: 80000,
-        amountReceived: 100000,
-        changeGiven: 20000,
-        date: DateTime.now().subtract(const Duration(days: 1)),
-      ),
-      Bill(
-        id: 'book_002',
-        requestId: 'bor_2002',
-        type: 'book',
-        overdueDays: 0,
-        overdueFee: 0,
-        damageFee: 0,
-        totalFee: 0,
-        amountReceived: 0,
-        changeGiven: 0,
-        date: DateTime.now(),
-      ),
-    ];
+  Future<void> _loadBills() async {
+    try {
+      final fetchedBills = await fetchBills();
+      setState(() => bills = fetchedBills);
+    } catch (e) {
+      debugPrint('Lỗi tải bills: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi tải hóa đơn: $e')),
+      );
+    }
   }
 
   @override
@@ -169,6 +132,18 @@ class _StatsPageState extends State<StatsPage> {
         ],
       ),
     );
+  }
+
+  Future<List<Bill>> fetchBills() async {
+    final url = Uri.parse('http://localhost:3002/api/bill');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((e) => Bill.fromJson(e)).toList();
+    } else {
+      throw Exception('Lỗi khi tải danh sách hóa đơn: ${response.body}');
+    }
   }
 }
 

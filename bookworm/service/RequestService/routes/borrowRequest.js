@@ -118,13 +118,13 @@ router.put('/:id/status', async (req, res) => {
     }
 
     if (newStatus === 'cancelled') {
-      const borrowRequest = await BorrowRequest.findById(req.params.id);
+      const borrowRequest = await BorrowRequest.findOne({ id: req.params.id });
       if (borrowRequest?.book_copy_id) {
         await axios.put(`http://localhost:3003/api/bookcopies/${borrowRequest.book_copy_id}/status`, {
           newStatus: 'available'
         });
       }
-    }    
+    }
 
     const oldStatus = request.status;
     request.status = newStatus;

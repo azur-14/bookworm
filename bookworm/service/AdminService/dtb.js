@@ -9,7 +9,7 @@ const connectAdminDB = async () => {
         }
 
         await mongoose.connect(uri);
-        console.log("✅ Kết nối BookService MongoDB thành công!");
+        console.log("✅ Kết nối AdminService MongoDB thành công!");
     } catch (error) {
         console.error("❌ Lỗi kết nối MongoDB:", error.message);
         process.exit(1);

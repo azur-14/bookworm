@@ -1,8 +1,8 @@
-// 📄 ActivityLogAdminPage.dart (Improved UI + Responsive)
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:bookworm/theme/AppColor.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ActivityLog {
   final String id;
@@ -18,6 +18,26 @@ class ActivityLog {
     required this.action,
     required this.timestamp,
   });
+
+  factory ActivityLog.fromJson(Map<String, dynamic> json) {
+    return ActivityLog(
+      id: json['id'] ?? json['_id'],
+      userId: json['userId'],
+      userName: json['userName'],
+      action: json['action'],
+      timestamp: DateTime.parse(json['timestamp']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'userId': userId,
+      'userName': userName,
+      'action': action,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
 }
 
 class ActivityLogAdminPage extends StatefulWidget {
@@ -38,26 +58,6 @@ class _ActivityLogAdminPageState extends State<ActivityLogAdminPage> {
   void initState() {
     super.initState();
     _loadLogs();
-  }
-
-  void _loadLogs() {
-    logs = [
-      ActivityLog(
-        id: 'log001',
-        userId: 'u001',
-        userName: 'User A',
-        action: 'Logged in',
-        timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-      ),
-      ActivityLog(
-        id: 'log002',
-        userId: 'u002',
-        userName: 'User B',
-        action: 'Deleted a book',
-        timestamp: DateTime.now().subtract(const Duration(hours: 1)),
-      ),
-    ];
-    setState(() {});
   }
 
   Future<void> _selectDateRange() async {
@@ -167,4 +167,28 @@ class _ActivityLogAdminPageState extends State<ActivityLogAdminPage> {
       ),
     );
   }
+
+  Future<List<ActivityLog>> fetchAllActivityLogs() async {
+    final uri = Uri.parse('http://localhost:3004/api/logs');
+    final response = await http.get(uri);
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((e) => ActivityLog.fromJson(e)).toList();
+    } else {
+      throw Exception('Lỗi tải activity logs: ${response.body}');
+    }
+  }
+
+  void _loadLogs() async {
+    try {
+      final data = await fetchAllActivityLogs();
+      setState(() => logs = data);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi khi tải logs: $e')),
+      );
+    }
+  }
+
 }
