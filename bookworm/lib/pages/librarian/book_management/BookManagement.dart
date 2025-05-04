@@ -90,32 +90,51 @@ class _BookManagementPageState extends State<BookManagementPage> {
   }
 
   void _deleteBook(Book book) async {
-    final confirmed = await showDialog(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete Confirmation'),
-        content: Text('Delete "${book.title}"?'),
+        title: const Text('Xác nhận xoá'),
+        content: Text('Bạn có chắc muốn xoá "${book.title}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('CANCEL')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('HỦY')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('DELETE'),
+            child: const Text('XOÁ'),
           )
         ],
       ),
     );
+
     if (confirmed == true) {
-      await deleteBookOnServer(book.id);
-      await deleteBookOnServer(book.id);
-      await _logAction(
-        actionType: 'DELETE',
-        targetId: book.id,
-        description: 'Xoá sách "${book.title}" (ID: ${book.id})',
-      );
-      _loadData();
+      try {
+        // 1. Gọi xoá trên server
+        await deleteBookOnServer(book.id);
+
+        // 2. Cập nhật UI ngay (loại sách khỏi list tại client)
+        setState(() {
+          _books.removeWhere((b) => b.id == book.id);
+        });
+
+        // 3. Ghi log hành động
+        await _logAction(
+          actionType: 'DELETE',
+          targetId: book.id,
+          description: 'Xoá sách "${book.title}" (ID: ${book.id})',
+        );
+
+        // **Tùy chọn**: nếu bạn vẫn muốn reload toàn bộ từ server:
+        await _loadData();
+
+      } catch (e) {
+        // Bắt và hiển thị lỗi nếu cần
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Xoá thất bại: $e')),
+        );
+      }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
