@@ -24,6 +24,8 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   late TabController _tabCtrl;
   final _searchCtl = TextEditingController();
   final _picker = ImagePicker();
+  String _selectedState = 'Nguyên vẹn';
+  final states = ['Nguyên vẹn', 'Hư hao nhẹ', 'Hư tổn đáng kể', 'Mất'];
 
   List<BorrowRequest> _borrows = [];
   List<ReturnRequest> _returns = [];
@@ -259,8 +261,30 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                 child: const Text('Đã nhận'),
               ),
             ]);
-          }
-        }
+          }}  else if (label == 'Đang mượn') {
+      final ret = _getReturn(b);
+      if (ret != null) {
+        // gom các nút lại thành một Row hoặc Wrap
+        trailing = Wrap(
+          spacing: 8,
+          children: [
+            // Nút “Hoàn thành” khi đang processing
+            if (ret.status == 'processing')
+              TextButton(
+                onPressed: () => _showCompleteReturnDialog(ret),
+                child: const Text('Hoàn thành'),
+              ),
+
+            // Nút “Email overdue” khi trạng thái return là overdue
+            if (ret.status == 'overdue')
+              TextButton(
+                onPressed: () => _sendOverdueEmail(ret),
+                child: const Text('Email overdue'),
+              ),
+          ],
+        );
+      }
+    }
 
 // rồi mới return Card/ListTile:
         return Card(
@@ -299,6 +323,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       ..sort((a, b) => b.returnDate.compareTo(a.returnDate));
   }
 
+
   Future<void> _showCompleteReturnDialog(ReturnRequest r) async {
     final condCtl = TextEditingController(text: r.condition);
     String? imgBase64 = r.returnImageBase64;
@@ -308,72 +333,79 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (_, setSt) {
-          final b = _borrows.firstWhere((x) => x.id == r.borrowRequestId);
-          final due = b.dueDate ?? b.requestDate;
+          // Tính phí
+          final borrow = _borrows.firstWhere((b) => b.id == r.borrowRequestId);
+          final due = borrow.dueDate ?? borrow.requestDate;
           final daysLate = r.returnDate.difference(due).inDays.clamp(0, 999);
           final overdueFee = daysLate * overdueFeePerDay;
           int damagePct;
-          switch (condCtl.text) {
+          switch (_selectedState) {
             case 'Hư hao nhẹ':     damagePct = 10;  break;
             case 'Hư tổn đáng kể': damagePct = 50;  break;
-            case 'Mất':            damagePct = 100; break;
-            default:               damagePct = 0;
+            case 'Mất':             damagePct = 100; break;
+            default:                damagePct = 0;   // Nguyên vẹn
           }
           final damageFee = damagePct * damageFeePerPercent;
+
           final total = overdueFee + damageFee;
 
           return AlertDialog(
             title: Text('Hoàn thành trả ${r.id}'),
             content: SingleChildScrollView(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                DropdownButtonFormField<String>(
-                  value: condCtl.text,
-                  decoration: const InputDecoration(labelText: 'Tình trạng sách'),
-                  items: ['Nguyên vẹn','Hư hao nhẹ','Hư tổn đáng kể','Mất']
-                      .map((s)=>DropdownMenuItem(value: s, child: Text(s))).toList(),
-                  onChanged: (v)=>setSt(()=>condCtl.text=v!),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                  icon: const Icon(Icons.image),
-                  label: const Text('Chọn ảnh'),
-                  onPressed: () async {
-                    final img = await _picker.pickImage(source: ImageSource.gallery);
-                    if (img!=null) {
-                      final bytes = await img.readAsBytes();
-                      setSt(()=>imgBase64=base64Encode(bytes));
-                    }
-                  },
-                ),
-                if (imgBase64!=null) ...[
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: _selectedState,
+                    decoration: const InputDecoration(labelText: 'Tình trạng sách'),
+                    items: states.map((s) =>
+                        DropdownMenuItem(value: s, child: Text(s))
+                    ).toList(),
+                    onChanged: (v) => setSt(() => _selectedState = v!),
+                  ),
+
                   const SizedBox(height: 8),
-                  Image.memory(base64Decode(imgBase64!), width:100, height:100),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.image),
+                    label: const Text('Chọn ảnh'),
+                    onPressed: () async {
+                      final img = await _picker.pickImage(source: ImageSource.gallery);
+                      if (img != null) {
+                        final bytes = await img.readAsBytes();
+                        setSt(() => imgBase64 = base64Encode(bytes));
+                      }
+                    },
+                  ),
+                  if (imgBase64 != null) ...[
+                    const SizedBox(height: 8),
+                    Image.memory(base64Decode(imgBase64!)),
+                  ],
+                  const Divider(),
+                  Text('Trễ: $daysLate ngày → ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
+                  Text('Hư hại: $damagePct% → ${NumberFormat.decimalPattern().format(damageFee)}₫'),
+                  const Divider(),
+                  Text('Tổng: ${NumberFormat.decimalPattern().format(total)}₫'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    decoration: const InputDecoration(labelText: 'Khách đưa (₫)'),
+                    keyboardType: TextInputType.number,
+                    onChanged: (v) => setSt(() => amountStr = v),
+                  ),
                 ],
-                const Divider(),
-                Text('Trễ: $daysLate ngày → ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
-                Text('Hư hại: $damagePct% → ${NumberFormat.decimalPattern().format(damageFee)}₫'),
-                const Divider(),
-                Text('Tổng: ${NumberFormat.decimalPattern().format(total)}₫'),
-                const SizedBox(height: 8),
-                TextField(
-                  decoration: const InputDecoration(labelText: 'Khách đưa (₫)'),
-                  keyboardType: TextInputType.number,
-                  onChanged: (v)=>setSt(()=>amountStr=v),
-                ),
-              ]),
+              ),
             ),
             actions: [
-              TextButton(onPressed: ()=>Navigator.pop(ctx), child: const Text('Huỷ')),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
                 onPressed: () {
                   final paid = int.tryParse(amountStr) ?? total;
                   final change = (paid - total).clamp(0, paid);
                   setState(() {
+                    // cập nhật return
                     r.status = 'completed';
-                    r.condition = condCtl.text;
+                    r.condition = condCtl.text.trim();
                     r.returnImageBase64 = imgBase64;
+                    // tạo hóa đơn
                     _bills.add(Bill(
                       id: 'bill_${r.borrowRequestId}_${DateTime.now().millisecondsSinceEpoch}',
                       borrowRequestId: r.borrowRequestId,
@@ -386,6 +418,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                     ));
                   });
                   Navigator.pop(ctx);
+                  // show hoá đơn
                   showDialog(
                     context: context,
                     builder: (_) => AlertDialog(
@@ -395,8 +428,8 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Borrow ID: ${r.borrowRequestId}'),
-                          Text('Quá hạn: ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
-                          Text('Hư hại: ${NumberFormat.decimalPattern().format(damageFee)}₫'),
+                          Text('Phí quá hạn: ${NumberFormat.decimalPattern().format(overdueFee)}₫'),
+                          Text('Phí hư hại: ${NumberFormat.decimalPattern().format(damageFee)}₫'),
                           const Divider(),
                           Text('Tổng: ${NumberFormat.decimalPattern().format(total)}₫'),
                           Text('Khách đưa: ${NumberFormat.decimalPattern().format(paid)}₫'),
@@ -404,7 +437,10 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                         ],
                       ),
                       actions: [
-                        TextButton(onPressed: ()=>Navigator.pop(context), child: const Text('Đóng')),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Đóng'),
+                        ),
                       ],
                     ),
                   );
@@ -421,38 +457,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   void _sendOverdueEmail(ReturnRequest r) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Gửi email quá hạn'), backgroundColor: Colors.blue),
-    );
-  }
-
-  Widget _buildReturnTab() {
-    final list = _filteredReturns;
-    if (list.isEmpty) return const Center(child: Text('Không có Return.'));
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: list.length,
-      itemBuilder: (_, i) {
-        final r = list[i];
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            leading: Icon(
-              _statusIcon(getCombinedStatus(_borrows.firstWhere((b)=>b.id==r.borrowRequestId))),
-              color: _statusColor(getCombinedStatus(_borrows.firstWhere((b)=>b.id==r.borrowRequestId))),
-            ),
-            title: Text('Borrow#${r.borrowRequestId}'),
-            subtitle: Text(DateFormat('yyyy-MM-dd').format(r.returnDate)),
-            trailing: Wrap(spacing: 8, children: [
-              if (r.status != 'completed')
-                TextButton(onPressed: () => _showCompleteReturnDialog(r), child: const Text('Complete')),
-              if (r.status == 'overdue')
-                TextButton(onPressed: () => _sendOverdueEmail(r), child: const Text('Email overdue')),
-              if (r.status == 'completed')
-                TextButton(onPressed: () => _showReturnDetail(r), child: const Text('Xem')),
-            ]),
-          ),
-        );
-      },
     );
   }
 
