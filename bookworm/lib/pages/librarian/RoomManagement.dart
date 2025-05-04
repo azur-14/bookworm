@@ -293,25 +293,35 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
                 backgroundColor: Colors.brown[700],
                 foregroundColor: Colors.white, // màu chữ trắng
               ),
-              onPressed: () {
-                final double? newFee =
-                double.tryParse(_feeController.text);
+              onPressed: () async {
+                final int? newFee = int.tryParse(_feeController.text);
                 if (newFee == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Giá không hợp lệ')),
                   );
                   return;
                 }
-                // Giả lập cập nhật thành công
-                setState(() {
-                  room.fee = newFee as int;
-                });
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text(
-                          'Giả lập: Cập nhật fee thành công')),
+
+                final url = Uri.parse('http://localhost:3001/api/rooms/${room.id}/fee');
+                final response = await http.put(
+                  url,
+                  headers: {'Content-Type': 'application/json'},
+                  body: json.encode({'fee': newFee}),
                 );
+
+                if (response.statusCode == 200) {
+                  setState(() {
+                    room.fee = newFee;
+                  });
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Cập nhật thành công')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Lỗi: ${response.body}')),
+                  );
+                }
               },
               child: const Text('Save'),
             ),

@@ -1,7 +1,7 @@
 class SystemConfig {
   final int id;
   final String configName;
-  late final String configValue;
+  String configValue;
 
   SystemConfig({
     required this.id,

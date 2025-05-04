@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:bookworm/model/SystemConfig.dart';
 import 'package:bookworm/theme/AppColor.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class SystemConfigPage extends StatefulWidget {
   @override
@@ -11,44 +13,44 @@ class SystemConfigPage extends StatefulWidget {
 class _SystemConfigPageState extends State<SystemConfigPage> {
   final _formKey = GlobalKey<FormState>();
 
-  List<SystemConfig> _configs = [
-    SystemConfig(id: 1, configName: 'damage_fee_percent', configValue: '10'),
-    // vẫn giữ key cũ, nhưng giá trị giờ thể hiện VNĐ/ngày
-    SystemConfig(id: 2, configName: 'overdue_fee_per_day', configValue: '2000'),
-    SystemConfig(id: 4, configName: 'max_advance_booking_days', configValue: '7'),
-    SystemConfig(id: 5, configName: 'max_loan_days', configValue: '14'),
-  ];
+  List<SystemConfig> _configs = [];
 
-  late final Map<String, TextEditingController> _controllers;
+  Map<String, TextEditingController>? _controllers;
 
   @override
   void initState() {
     super.initState();
-    _controllers = {
-      for (var cfg in _configs)
-        cfg.configName: TextEditingController(text: cfg.configValue),
-    };
+    _loadRequests();
   }
 
   @override
   void dispose() {
-    _controllers.values.forEach((c) => c.dispose());
+    _controllers!.values.forEach((c) => c.dispose());
     super.dispose();
   }
 
-  void _save() {
+  void _save() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() {
+
+    try {
       for (var cfg in _configs) {
-        cfg.configValue = _controllers[cfg.configName]!.text.trim();
+        cfg.configValue = _controllers![cfg.configName]!.text.trim();
+        await updateSystemConfig(cfg);  // Gửi API cập nhật
       }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Đã lưu cấu hình (giả lập)'),
-        backgroundColor: Colors.brown.shade700,
-      ),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Đã lưu cấu hình'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi khi lưu: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildField(String key, String label, String suffix) {
@@ -57,7 +59,7 @@ class _SystemConfigPageState extends State<SystemConfigPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       elevation: 2,
       child: TextFormField(
-        controller: _controllers[key],
+        controller: _controllers![key],
         keyboardType: TextInputType.number,
         decoration: InputDecoration(
           filled: true,
@@ -87,7 +89,9 @@ class _SystemConfigPageState extends State<SystemConfigPage> {
   @override
   Widget build(BuildContext context) {
     // trong build() của _SystemConfigPageState:
-
+    if (_controllers == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -159,6 +163,44 @@ class _SystemConfigPageState extends State<SystemConfigPage> {
         ),
       ),
     );
+  }
+
+  Future<List<SystemConfig>> fetchSystemConfigs() async {
+    final response = await http.get(Uri.parse('http://localhost:3004/api/systemConfig'));
+
+    if (response.statusCode == 200) {
+      final List data = json.decode(response.body);
+      return data.map((e) => SystemConfig.fromJson(e)).toList();
+    } else {
+      throw Exception('Failed to load system configs: ${response.body}');
+    }
+  }
+
+  Future<void> _loadRequests() async {
+    try {
+      final list = await fetchSystemConfigs();
+      setState(() {
+        _configs = list;
+        _controllers = {
+          for (var cfg in _configs)
+            cfg.configName: TextEditingController(text: cfg.configValue),
+        };
+      });
+    } catch (e) {
+      debugPrint('Lỗi khi tải danh sách systemConfig: $e');
+    }
+  }
+
+  Future<void> updateSystemConfig(SystemConfig config) async {
+    final response = await http.put(
+      Uri.parse('http://localhost:3004/api/systemConfig/${config.id}'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'config_value': config.configValue}),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update config ${config.configName}: ${response.body}');
+    }
   }
 }
 
