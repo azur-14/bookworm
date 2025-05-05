@@ -125,18 +125,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
     return 'Không rõ';
   }
 
-  Future<List<RequestStatusHistory>> fetchStatusHistory(String requestId) async {
-    final res = await http.get(
-        Uri.parse('http://localhost:3002/api/requestStatusHistory/$requestId')
-    );
-    if (res.statusCode == 200) {
-      final data = json.decode(res.body) as List;
-      return data
-          .map((e) => RequestStatusHistory.fromJson(e as Map<String, dynamic>))
-          .toList();
-    }
-    throw Exception('Failed to load status history');
-  }
   Color _statusColor(String label) {
     switch (label) {
       case 'Chờ duyệt':   return Colors.orange;
@@ -917,6 +905,17 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       );
     }
   }
+
+  Future<List<RequestStatusHistory>> fetchStatusHistory(String requestId) async {
+    final res = await http.get(Uri.parse('http://localhost:3002/api/requestStatusHistory/$requestId'));
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body) as List;
+      return data.map((e) => RequestStatusHistory.fromJson(e)).toList();
+    } else {
+      throw Exception('Failed to load status history');
+    }
+  }
+
 }
 
 // Card đơn giản cho từng con số
