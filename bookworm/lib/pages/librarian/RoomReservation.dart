@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../model/RequestStatusHistory.dart';
+
 class BookingReviewPage extends StatefulWidget {
   @override
   State<BookingReviewPage> createState() => _BookingReviewPageState();
@@ -67,6 +69,58 @@ class _BookingReviewPageState extends State<BookingReviewPage>
       setState(() => _allRequests = list);
     } catch (e) {
       debugPrint('Lỗi khi tải yêu cầu: $e');
+    }
+  }
+  /// Hiển thị dialog lịch sử thay đổi status cho booking request
+  Future<void> _showHistoryDialog(String requestId) async {
+    try {
+      // Gọi API lấy về list<RequestStatusHistory>
+      final url = Uri.parse('http://localhost:3002/api/requestStatusHistory/$requestId');
+      final res = await http.get(url);
+      if (res.statusCode != 200) throw Exception(res.body);
+      final data = (json.decode(res.body) as List)
+          .map((e) => RequestStatusHistory.fromJson(e))
+          .toList();
+
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text('Lịch sử thay đổi: $requestId'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: data.isEmpty
+                ? const Text('Chưa có lịch sử thay đổi.')
+                : ListView.separated(
+              shrinkWrap: true,
+              itemCount: data.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (_, i) {
+                final h = data[i];
+                final time = DateFormat('yyyy-MM-dd HH:mm').format(h.changeTime);
+                return ListTile(
+                  leading: Icon(Icons.history, color: AppColors.primary),
+                  title: Text('${h.oldStatus} → ${h.newStatus}'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Lúc: $time'),
+                      Text('Bởi: ${h.changedBy}'),
+                      if (h.reason.isNotEmpty) Text('Lý do: ${h.reason}'),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng')),
+          ],
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không tải được lịch sử: $e')),
+      );
     }
   }
 
@@ -390,9 +444,16 @@ class _BookingReviewPageState extends State<BookingReviewPage>
                                 ? const Center(child: Text('Không có lịch sử phù hợp.'))
                                 : ListView.builder(
                               itemCount: filteredHistory.length,
-                              itemBuilder: (ctx, i) => _buildCardForStatus(filteredHistory[i]),
+                              itemBuilder: (ctx, i) {
+                                final req = filteredHistory[i];
+                                return GestureDetector(
+                                  onTap: () => _showHistoryDialog(req.id),
+                                  child: _buildCardForStatus(req),
+                                );
+                              },
                             ),
                           ),
+
                         ],
                       ),
                     );
