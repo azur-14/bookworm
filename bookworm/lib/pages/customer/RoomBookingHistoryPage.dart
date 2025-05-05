@@ -219,13 +219,6 @@ class _RoomBookingHistoryPageState extends State<RoomBookingHistoryPage> {
                 child: const Text('Hủy'),
               ),
               const SizedBox(width: 8),
-              TextButton(
-                onPressed: () async {
-                  final bill = await fetchBill(req.id);
-                  if (bill != null) _showBillPreview(bill);
-                },
-                child: const Text('Xem hóa đơn'),
-              ),
             ],
           ));
         }
