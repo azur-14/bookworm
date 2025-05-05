@@ -84,17 +84,21 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
       status: 'pending',
       purpose: _purposeController.text.trim(),
       requestTime: DateTime.now(),
+      pricePerHour: room.fee.toDouble(),  // <-- thêm dòng này
     );
 
     try {
       setState(() {
         _bookingMap.putIfAbsent(room.id, () => []).add(newRequest);
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đặt phòng thành công!')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Đặt phòng thành công!')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đặt phòng thất bại: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Đặt phòng thất bại: $e')));
     }
   }
+
 
   void _openSchedule(Room room) {
     final bookings = _bookingMap[room.id] ?? [];
@@ -302,6 +306,7 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
                                     purpose: purpose,
                                     requestTime: requestTime,
                                     selectedSlots: _selectedSlots.toList(),
+                                    pricePerHour: room.fee.toDouble(),
                                   );
                                   Navigator.pop(ctx);
                                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đặt phòng thành công!')));
@@ -444,6 +449,7 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
     required String purpose,
     required DateTime requestTime,
     required List<DateTime> selectedSlots,
+    required double pricePerHour,   // thêm param
   }) async {
     selectedSlots.sort();
     final merged = <Map<String, String>>[];
@@ -478,6 +484,7 @@ class _RoomBookingPageState extends State<RoomBookingPage> {
         'purpose': purpose,
         'request_time': requestTime.toIso8601String(),
         'slots': merged,
+        'price_per_hour': pricePerHour,   // gửi thêm giá giờ
       }),
     );
 

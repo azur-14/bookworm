@@ -134,26 +134,50 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     throw Exception('Lỗi khi tải RoomBookingRequest');
   }
 
-  Future<Bill> _createBill(Bill bill) async {
+  Future<void> _postBill(Bill bill) async {
     final url = Uri.parse('http://localhost:3002/api/bills');
-    final res = await http.post(
+    final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
-      body: json.encode(bill.toJson()),
+      body: json.encode({
+        'id': bill.id,
+        'borrowRequestId': bill.requestId,    // camelCase khớp schema
+        'type': bill.type,                     // 'room'
+        'overdueDays': bill.overdueDays,
+        'overdueFee': bill.overdueFee,
+        'damageFee': bill.damageFee,
+        'totalFee': bill.totalFee,
+        'amountReceived': bill.amountReceived,
+        'changeGiven': bill.changeGiven,
+        'date': bill.date.toIso8601String(),
+      }),
     );
-    if (res.statusCode == 201) {
-      return Bill.fromJson(json.decode(res.body));
+    if (response.statusCode == 201) {
+      debugPrint('Gửi bill thành công!');
+    } else {
+      debugPrint('Lỗi gửi bill: ${response.statusCode} ${response.body}');
     }
-    throw Exception('Lỗi khi tạo hóa đơn: ${res.body}');
   }
 
   void _showInvoiceDialog(RoomBookingRequest req) {
     final now = DateTime.now();
+
+    // 1. Tính số giờ (có thể không nguyên):
+    final durationInMinutes = req.endTime.difference(req.startTime).inMinutes;
+    final durationHours = durationInMinutes / 60.0;
+
+    // 2. Tính phí gốc = số giờ × pricePerHour
+    final double baseFee = durationHours * req.pricePerHour;
+
+    // 3. Tính phí quá hạn & hỏng hóc như cũ
     final overdueDays =
     now.isAfter(req.endTime) ? now.difference(req.endTime).inDays : 0;
-    final overdueFee = overdueDays * 10000; // 10k/ngày
-    final double damageFee = req.purpose.contains('hư hỏng') ? 50000 : 0;
-    final double totalFee = overdueFee + damageFee;
+    final int overdueFee = overdueDays * 10000;
+    final double damageFee =
+    req.purpose.contains('hư hỏng') ? 50000.0 : 0.0;
+
+    // 4. Tổng tiền
+    final double totalFee = baseFee + overdueFee + damageFee;
 
     final amountCtl = TextEditingController();
     showDialog(
@@ -166,32 +190,29 @@ class _BookingReviewPageState extends State<BookingReviewPage>
           children: [
             Text('Yêu cầu ID: ${req.id}'),
             const SizedBox(height: 8),
-            Text(
-                'Thời gian: ${DateFormat('yyyy-MM-dd HH:mm').format(req.startTime)} → ${DateFormat('HH:mm').format(req.endTime)}'),
+            Text('Thời gian: ${DateFormat('yyyy-MM-dd HH:mm').format(req.startTime)} → ${DateFormat('HH:mm').format(req.endTime)}'),
+            const SizedBox(height: 8),
+            Text('Số giờ sử dụng: ${durationHours.toStringAsFixed(2)}h'),
+            Text('Phí/giờ: ${req.pricePerHour.toStringAsFixed(0)}₫'),
+            Text('Tạm tính: ${baseFee.toStringAsFixed(0)}₫'),
             const Divider(),
-            Text('Quá hạn: $overdueDays ngày → ${overdueFee}₫'),
-            Text('Phí hư hỏng: ${damageFee}₫'),
-            const Divider(),
-            Text('TỔNG: ${totalFee}₫',
+            Text('TỔNG: ${totalFee.toStringAsFixed(0)}₫',
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             TextField(
               controller: amountCtl,
               keyboardType: TextInputType.number,
-              decoration:
-              const InputDecoration(labelText: 'Khách thanh toán (₫)'),
+              decoration: const InputDecoration(labelText: 'Khách thanh toán (₫)'),
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
               final paid = double.tryParse(amountCtl.text.trim()) ?? 0;
               final change = paid - totalFee;
+              // Tạo đối tượng Bill
               final bill = Bill(
                 id: DateTime.now().millisecondsSinceEpoch.toString(),
                 requestId: req.id,
@@ -199,21 +220,16 @@ class _BookingReviewPageState extends State<BookingReviewPage>
                 overdueDays: overdueDays,
                 overdueFee: overdueFee,
                 damageFee: damageFee,
-                totalFee: totalFee,
+                totalFee: totalFee,           // <-- dùng totalFee vừa tính
                 amountReceived: paid,
                 changeGiven: change < 0 ? 0 : change,
               );
               try {
-                final created = await _createBill(bill);
-                await _logAction(
-                  adminId: _adminId,
-                  actionType: 'CREATE',
-                  targetType: 'Bill',
-                  targetId: created.id,
-                  description: 'Xuất hóa đơn cho booking ${req.id}, tổng tiền: ${created.totalFee}₫',
-                );
+                await _postBill(bill);
+                await _updateStatus(req, 'using');
                 Navigator.pop(context);
-                _showBillPreview(created);
+                _showBillPreview(bill);  // pass luôn bill local
+
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Lỗi tạo hóa đơn: $e')),
@@ -226,6 +242,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
       ),
     );
   }
+
 
   void _showBillPreview(Bill bill) {
     showDialog(
@@ -553,9 +570,9 @@ class _BookingReviewPageState extends State<BookingReviewPage>
           ),
           const SizedBox(width: 8),
           ElevatedButton(
-            onPressed: () => _updateStatus(r, 'using'),
+            onPressed: () => _showInvoiceDialog(r),    // <-- gọi dialog
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
+             backgroundColor: AppColors.primary,
               foregroundColor: AppColors.white,
             ),
             child: const Text('Thanh toán'),
