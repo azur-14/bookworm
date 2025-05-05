@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const RequestStatusHistory = require('../models/RequestStatusHistory');
+const ReturnRequest = require('../models/ReturnRequest');
 
 router.post('/', async (req, res) => {
   try {
@@ -18,18 +19,19 @@ router.get('/:requestId', async (req, res) => {
   try {
     const requestId = req.params.requestId;
 
-    // 1. Lấy các log theo chính requestId
+    // Tìm lịch sử trực tiếp của requestId
     const directHistories = await RequestStatusHistory.find({ requestId }).sort({ changeTime: -1 });
 
-    // 2. Tìm returnRequest liên quan
+    // Kiểm tra xem đây có phải là borrowRequestId không (nếu có ReturnRequest liên kết)
     const relatedReturn = await ReturnRequest.findOne({ borrowRequestId: requestId });
 
     let returnHistories = [];
     if (relatedReturn) {
+      // Nếu là borrowRequest, lấy thêm lịch sử của ReturnRequest liên kết
       returnHistories = await RequestStatusHistory.find({ requestId: relatedReturn._id.toString() }).sort({ changeTime: -1 });
     }
 
-    // 3. Gộp hai mảng
+    // Gộp và sắp xếp toàn bộ
     const allHistories = [...directHistories, ...returnHistories];
     allHistories.sort((a, b) => b.changeTime - a.changeTime);
 

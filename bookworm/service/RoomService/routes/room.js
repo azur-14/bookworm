@@ -39,4 +39,24 @@ router.put('/:id/fee', async (req, res) => {
   }
 });
 
+router.get('/:id', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const room = await Room.findOne({ id: roomId });
+    if (!room) return res.status(404).json({ message: 'Không tìm thấy phòng' });
+
+    res.json({
+      id: room.id,
+      name: room.name,
+      type: room.type,
+      price: room.price, // 👈 phải có trường price trong schema
+      capacity: room.capacity,
+      description: room.description,
+    });
+  } catch (err) {
+    console.error('❌ Lỗi khi lấy phòng:', err);
+    res.status(500).json({ message: 'Lỗi server', error: err.message });
+  }
+});
+
 module.exports = router;

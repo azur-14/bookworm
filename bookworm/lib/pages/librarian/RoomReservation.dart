@@ -327,6 +327,19 @@ class _BookingReviewPageState extends State<BookingReviewPage>
       body: json.encode({'status': newStatus}),
     );
     if (res.statusCode == 200) {
+      await http.post(
+        Uri.parse('http://localhost:3002/api/requestStatusHistory'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'requestId': r.id,
+          'requestType': 'room',
+          'oldStatus': r.status,
+          'newStatus': newStatus,
+          'changedBy': _adminId,
+          'reason': 'Cập nhật từ UI BookingReviewPage'
+        }),
+      );
+
       setState(() => r.status = newStatus);
 
       // Ghi log hành động
