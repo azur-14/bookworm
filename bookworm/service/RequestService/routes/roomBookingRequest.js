@@ -41,7 +41,8 @@ router.post('/', async (req, res) => {
       room_id,
       slots, // danh sách các slot thời gian [{ start_time, end_time }]
       purpose,
-      request_time
+      request_time,
+      price_per_hour,
     } = req.body;
 
     if (!Array.isArray(slots) || slots.length === 0) {
@@ -84,7 +85,8 @@ router.post('/', async (req, res) => {
         end_time: mergedSlots[i].end.toDate(),
         purpose,
         status: 'pending',
-        request_time: moment(request_time).add(7, 'hours').toDate()
+        request_time: moment(request_time).add(7, 'hours').toDate(),
+        price_per_hour
       });
 
       await request.save();
