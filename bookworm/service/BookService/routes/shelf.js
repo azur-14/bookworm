@@ -2,6 +2,18 @@ const express = require('express');
 const router = express.Router();
 const Shelf = require('../models/Shelves');
 
+/**
+ * @swagger
+ * /api/shelves:
+ *   get:
+ *     summary: Lấy danh sách tất cả kệ sách
+ *     tags: [Shelves]
+ *     responses:
+ *       200:
+ *         description: Danh sách kệ sách được trả về
+ *       500:
+ *         description: Lỗi khi truy vấn kệ sách
+ */
 // GET /api/shelves - lấy danh sách tất cả kệ sách
 router.get('/', async (req, res) => {
   try {
@@ -12,6 +24,18 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/shelves/available:
+ *   get:
+ *     summary: Lấy danh sách các kệ còn chỗ trống
+ *     tags: [Shelves]
+ *     responses:
+ *       200:
+ *         description: Danh sách kệ còn chỗ được trả về
+ *       500:
+ *         description: Lỗi khi truy vấn kệ sách
+ */
 router.get('/available', async (req, res) => {
   try {
     const shelves = await Shelf.find({

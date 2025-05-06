@@ -56,6 +56,11 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
     }
   }
 
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('jwt_token');
+  }
+
   bool isValidEmail(String email) {
     final RegExp emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     return emailRegex.hasMatch(email);
@@ -246,9 +251,13 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
   }
 
   Future<void> addUser(User user) async {
+    final token = await getToken();
     final res = await http.post(
       Uri.parse('http://localhost:3000/api/users/signup'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
       body: jsonEncode({
         'name': user.name,
         'email': user.email,
@@ -266,9 +275,13 @@ class _UserAddUpdateDialogState extends State<UserAddUpdateDialog> {
   }
 
   Future<void> updateUser(User user) async {
+    final token = await getToken();
     final res = await http.put(
       Uri.parse('http://localhost:3000/api/users/${user.id}'),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
       body: jsonEncode({
         'name': user.name,
         'email': user.email,

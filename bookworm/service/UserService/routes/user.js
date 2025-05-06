@@ -4,7 +4,39 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const User = require('../models/User'); // đường dẫn tới userSchema của bạn
 const router = express.Router();
+const { verifyToken, requireAdminOrLibrarian } = require('../routes/auth');
 
+/**
+ * @swagger
+ * /api/users/signup:
+ *   post:
+ *     summary: Đăng ký tài khoản mới
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *               avatar:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Đăng ký thành công
+ *       400:
+ *         description: Email đã tồn tại
+ */
 // Đăng ký
 router.post('/signup', async (req, res) => {
     try {
@@ -31,6 +63,29 @@ router.post('/signup', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/users/login:
+ *   post:
+ *     summary: Đăng nhập và nhận token
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Đăng nhập thành công + token
+ *       401:
+ *         description: Sai thông tin
+ */
 // Đăng nhập
 router.post('/login', async (req, res) => {
   try {
@@ -74,6 +129,27 @@ router.post('/login', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/forgot-password:
+ *   post:
+ *     summary: Gửi mã OTP đặt lại mật khẩu
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Gửi thành công
+ *       404:
+ *         description: Email không tồn tại
+ */
 // Gửi mã OTP về email
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
@@ -117,6 +193,29 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/reset-password:
+ *   post:
+ *     summary: Đặt lại mật khẩu người dùng
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Đặt lại thành công
+ *       404:
+ *         description: Không tìm thấy user
+ */
 // đổi mật khẩu
 router.post('/reset-password', async (req, res) => {
   const { email, newPassword } = req.body;
@@ -140,8 +239,28 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     summary: Lấy danh sách người dùng (chỉ admin/librarian)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *         description: Lọc theo vai trò
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *       403:
+ *         description: Không có quyền
+ */
 // Lấy danh sách người dùng KHÔNG phải admin hoặc librarian
-router.get('/', async (req, res) => {
+router.get('/', verifyToken, requireAdminOrLibrarian, async (req, res) => {
   try {
     const role = req.query.role;
 
@@ -155,8 +274,35 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   put:
+ *     summary: Cập nhật thông tin người dùng
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID người dùng
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Cập nhật thành công
+ *       400:
+ *         description: ID không hợp lệ
+ */
 // update thông tin người dùng hiện tại
-router.put('/:id', async (req, res) => {
+router.put('/:id', verifyToken, requireAdminOrLibrarian, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -186,6 +332,25 @@ router.put('/:id', async (req, res) => {
 // lấy thông tin người dùng
 const mongoose = require('mongoose');
 
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   get:
+ *     summary: Lấy thông tin một người dùng
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID người dùng
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *       404:
+ *         description: Không tìm thấy
+ */
 router.get('/:id', async (req, res) => {
   try {
     // Kiểm tra định dạng ObjectId hợp lệ
@@ -202,8 +367,29 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   delete:
+ *     summary: Xóa người dùng (admin/librarian)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID người dùng
+ *     responses:
+ *       200:
+ *         description: Xóa thành công
+ *       403:
+ *         description: Không có quyền
+ */
 // delete user
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', verifyToken, requireAdminOrLibrarian, async (req, res) => {
   try {
     const objectId = new mongoose.Types.ObjectId(req.params.id);
 
@@ -218,7 +404,32 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-router.post('/emails', async (req, res) => {
+/**
+ * @swagger
+ * /api/users/emails:
+ *   post:
+ *     summary: Lấy email theo danh sách userIds (chỉ admin/librarian)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               userIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *       400:
+ *         description: Sai định dạng
+ */
+router.post('/emails', verifyToken, requireAdminOrLibrarian, async (req, res) => {
   const { userIds } = req.body;
   if (!Array.isArray(userIds)) {
     return res.status(400).json({ error: 'userIds phải là mảng' });

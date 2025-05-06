@@ -135,7 +135,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   }
 
   Future<void> _postBill(Bill bill) async {
-    final url = Uri.parse('http://localhost:3002/api/bills');
+    final url = Uri.parse('http://localhost:3002/api/bill');
     final response = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},

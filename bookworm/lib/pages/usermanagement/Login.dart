@@ -206,7 +206,9 @@ class _SignInPageState extends State<SignInPage> {
       final name = user['name'] as String;
       final role = user['role'] as String;
       final userId = user['id'] ?? user['_id']; // 👈 Tùy theo backend trả về
-
+      final token = data['token'];
+      print(token);
+      await saveToken(token);
       // print(data['message']);
 
       showDialog(
@@ -261,5 +263,10 @@ class _SignInPageState extends State<SignInPage> {
         ),
       );
     }
+  }
+
+  Future<void> saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('jwt_token', token);
   }
 }

@@ -7,6 +7,35 @@ const { v4: uuidv4 } = require('uuid');
 const moment = require('moment');
 const nodemailer = require('nodemailer');
 
+/**
+ * @swagger
+ * /api/borrow:
+ *   post:
+ *     summary: Gửi yêu cầu mượn sách
+ *     tags: [BorrowRequests]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               user_id:
+ *                 type: string
+ *               book_id:
+ *                 type: string
+ *               receive_date:
+ *                 type: string
+ *               request_date:
+ *                 type: string
+ *               due_date:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Tạo yêu cầu thành công
+ *       500:
+ *         description: Lỗi khi tạo yêu cầu
+ */
 // gửi yêu cầu mượn sách
 router.post('/', async (req, res) => {
   try {
@@ -49,6 +78,29 @@ router.post('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/borrow/check/{userId}/{bookId}:
+ *   get:
+ *     summary: Kiểm tra xem người dùng đã mượn sách chưa
+ *     tags: [BorrowRequests]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: bookId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Trạng thái đã mượn hay chưa
+ *       500:
+ *         description: Lỗi server
+ */
 //check đã mượn sách này chưa
 router.get('/check/:userId/:bookId', async (req, res) => {
   const { userId, bookId } = req.params;
@@ -65,6 +117,24 @@ router.get('/check/:userId/:bookId', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/borrow/user/{userId}:
+ *   get:
+ *     summary: Lấy tất cả yêu cầu mượn của người dùng
+ *     tags: [BorrowRequests]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Danh sách yêu cầu mượn
+ *       500:
+ *         description: Lỗi khi truy vấn
+ */
 // lấy tất cả yêu cầu mượn sách của ng dùng hiện tại
 router.get('/user/:userId', async (req, res) => {
   try {
@@ -75,6 +145,18 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/borrow:
+ *   get:
+ *     summary: Lấy tất cả yêu cầu mượn kèm tên sách và email
+ *     tags: [BorrowRequests]
+ *     responses:
+ *       200:
+ *         description: Danh sách yêu cầu mượn đã enrich
+ *       500:
+ *         description: Lỗi server
+ */
 // get tất cả BorrowRequest kèm email + tên sách
 router.get('/', async (req, res) => {
   try {
@@ -106,6 +188,37 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/borrow/{id}/status:
+ *   put:
+ *     summary: Cập nhật trạng thái yêu cầu mượn
+ *     tags: [BorrowRequests]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               newStatus:
+ *                 type: string
+ *               changedBy:
+ *                 type: string
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Cập nhật trạng thái thành công
+ *       404:
+ *         description: Không tìm thấy yêu cầu
+ */
 //update trạng thái theo id
 router.put('/:id/status', async (req, res) => {
   const { id } = req.params;
@@ -147,6 +260,28 @@ router.put('/:id/status', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/borrow/send-overdue-email/{borrowId}:
+ *   post:
+ *     summary: Gửi email nhắc nhở trễ hạn trả sách
+ *     tags: [BorrowRequests]
+ *     parameters:
+ *       - in: path
+ *         name: borrowId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Gửi email thành công
+ *       400:
+ *         description: Không tìm thấy email người dùng
+ *       404:
+ *         description: Không tìm thấy yêu cầu mượn
+ *       500:
+ *         description: Lỗi khi gửi mail
+ */
 // gửi mail nhắc nhở quá hạn
 router.post('/send-overdue-email/:borrowId', async (req, res) => {
   const { borrowId } = req.params;

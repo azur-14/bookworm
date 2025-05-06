@@ -4,6 +4,18 @@ const Book = require('../models/Book');
 const BookCopy = require('../models/BookCopy');
 const Shelf = require('../models/Shelves');
 
+/**
+ * @swagger
+ * /api/books:
+ *   get:
+ *     summary: Lấy danh sách toàn bộ sách
+ *     tags: [Books]
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *       500:
+ *         description: Lỗi server
+ */
 // GET /api/books — lấy toàn bộ sách
 router.get('/', async (req, res) => {
   try {
@@ -14,6 +26,43 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/books:
+ *   post:
+ *     summary: Thêm sách mới và tạo bản sao tương ứng
+ *     tags: [Books]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               image:
+ *                 type: string
+ *               title:
+ *                 type: string
+ *               author:
+ *                 type: string
+ *               publisher:
+ *                 type: string
+ *               publish_year:
+ *                 type: number
+ *               price:
+ *                 type: number
+ *               category_id:
+ *                 type: string
+ *               total_quantity:
+ *                 type: number
+ *               description:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Thêm sách thành công
+ *       400:
+ *         description: Lỗi khi thêm sách
+ */
 // POST /api/books — thêm sách mới
 router.post('/', async (req, res) => {
   try {
@@ -62,7 +111,32 @@ router.post('/', async (req, res) => {
   }
 });
 
-// update book
+/**
+ * @swagger
+ * /api/books/{id}:
+ *   put:
+ *     summary: Cập nhật thông tin sách và số lượng bản sao
+ *     tags: [Books]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Cập nhật thành công
+ *       400:
+ *         description: Lỗi khi cập nhật
+ *       404:
+ *         description: Không tìm thấy sách
+ */
 // update book
 router.put('/:id', async (req, res) => {
   try {
@@ -102,6 +176,26 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/books/{id}:
+ *   delete:
+ *     summary: Xoá sách và tất cả bản sao liên quan, cập nhật lại kệ
+ *     tags: [Books]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Xoá thành công
+ *       404:
+ *         description: Không tìm thấy sách
+ *       500:
+ *         description: Lỗi khi xoá
+ */
 // xóa book
 router.delete('/:id', async (req, res) => {
   try {
@@ -143,6 +237,29 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/books/titles:
+ *   post:
+ *     summary: Lấy tiêu đề sách theo danh sách bookIds
+ *     tags: [Books]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               bookIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Trả về map bookId → title
+ *       500:
+ *         description: Lỗi khi truy vấn
+ */
 router.post('/titles', async (req, res) => {
   const { bookIds } = req.body;
   try {

@@ -58,7 +58,15 @@ class _UserManagementPageState extends State<UserManagementPage> with SingleTick
 
   Future<List<User>> fetchUsers() async {
     final role = 'customer';
-    final response = await http.get(Uri.parse('http://localhost:3000/api/users?role=$role'));
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('jwt_token');
+    final response = await http.get(
+        Uri.parse('http://localhost:3000/api/users?role=$role'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+    );
     if (response.statusCode == 200) {
       final List<dynamic> jsonList = json.decode(response.body);
       return jsonList.map((json) => User.fromJson(json)).toList();
@@ -81,8 +89,15 @@ class _UserManagementPageState extends State<UserManagementPage> with SingleTick
   }
 
   Future<void> deleteUserFromServer(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('jwt_token'); // 👈 Lấy token đã lưu
+
     final res = await http.delete(
       Uri.parse('http://localhost:3000/api/users/$id'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
     );
 
     if (res.statusCode != 200) {

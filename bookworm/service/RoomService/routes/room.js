@@ -3,6 +3,18 @@ const express = require('express');
 const router = express.Router();
 const Room = require('../models/Room'); // đường dẫn đến file roomSchema bạn vừa gửi
 
+/**
+ * @swagger
+ * /api/rooms:
+ *   get:
+ *     summary: Lấy danh sách tất cả phòng
+ *     tags: [Rooms]
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *       500:
+ *         description: Lỗi server
+ */
 // Lấy danh sách tất cả phòng (room_M, RBHP)
 router.get('/', async (req, res) => {
   try {
@@ -13,6 +25,38 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/rooms/{id}/fee:
+ *   put:
+ *     summary: Cập nhật giá phòng theo ID
+ *     tags: [Rooms]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Mã phòng
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fee:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Cập nhật thành công
+ *       400:
+ *         description: Giá trị không hợp lệ
+ *       404:
+ *         description: Không tìm thấy phòng
+ *       500:
+ *         description: Lỗi server
+ */
 // cập nhật giá phòng
 router.put('/:id/fee', async (req, res) => {
   const { id } = req.params;
@@ -39,6 +83,27 @@ router.put('/:id/fee', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/rooms/{id}:
+ *   get:
+ *     summary: Lấy thông tin chi tiết một phòng
+ *     tags: [Rooms]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID phòng
+ *     responses:
+ *       200:
+ *         description: Trả về thông tin phòng
+ *       404:
+ *         description: Không tìm thấy phòng
+ *       500:
+ *         description: Lỗi server
+ */
 router.get('/:id', async (req, res) => {
   try {
     const roomId = req.params.id;

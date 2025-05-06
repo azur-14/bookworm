@@ -3,6 +3,18 @@ const router = express.Router();
 const moment = require('moment');
 const RoomBookingRequest = require('../models/RoomBookingRequest');
 
+/**
+ * @swagger
+ * /api/room-booking:
+ *   get:
+ *     summary: Lấy tất cả yêu cầu đặt phòng (kèm user & room)
+ *     tags: [RoomBookingRequests]
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *       500:
+ *         description: Lỗi server
+ */
 // lấy tất cả yêu cầu đặt phòng
 router.get('/', async (req, res) => {
   try {
@@ -23,6 +35,24 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/room-booking/user/{userId}:
+ *   get:
+ *     summary: Lấy yêu cầu đặt phòng của người dùng cụ thể
+ *     tags: [RoomBookingRequests]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *       500:
+ *         description: Lỗi server
+ */
 // Lấy tất cả RoomBookingRequest của người dùng
 router.get('/user/:userId', async (req, res) => {
   try {
@@ -33,6 +63,46 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/room-booking:
+ *   post:
+ *     summary: Gửi yêu cầu đặt phòng
+ *     tags: [RoomBookingRequests]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               user_id:
+ *                 type: string
+ *               room_id:
+ *                 type: string
+ *               slots:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     start_time:
+ *                       type: string
+ *                     end_time:
+ *                       type: string
+ *               purpose:
+ *                 type: string
+ *               request_time:
+ *                 type: string
+ *               price_per_hour:
+ *                 type: number
+ *     responses:
+ *       201:
+ *         description: Đặt phòng thành công
+ *       400:
+ *         description: Danh sách slot không hợp lệ
+ *       500:
+ *         description: Lỗi server
+ */
 // Thêm yêu cầu đặt phòng
 router.post('/', async (req, res) => {
   try {
@@ -100,6 +170,38 @@ router.post('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/room-booking/{id}:
+ *   put:
+ *     summary: Cập nhật trạng thái yêu cầu đặt phòng
+ *     tags: [RoomBookingRequests]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [approved, using, finished, rejected, cancelled]
+ *     responses:
+ *       200:
+ *         description: Cập nhật thành công
+ *       400:
+ *         description: Trạng thái không hợp lệ
+ *       404:
+ *         description: Không tìm thấy yêu cầu
+ *       500:
+ *         description: Lỗi server
+ */
 // cập nhật trạng thái phòng
 router.put('/:id', async (req, res) => {
   try {

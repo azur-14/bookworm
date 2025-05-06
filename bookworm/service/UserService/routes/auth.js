@@ -1,21 +1,24 @@
 const jwt = require('jsonwebtoken');
 
 const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // "Bearer <token>"
 
-  // Kiểm tra có token không
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Không có token' });
-  }
+  if (!token) return res.status(401).json({ message: 'Không có token' });
 
-  const token = authHeader.split(' ')[1];
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'admin123');
-    req.user = decoded; // Gắn user info vào request
+  jwt.verify(token, process.env.JWT_SECRET || 'admin123', (err, user) => {
+    if (err) return res.status(403).json({ message: 'Token không hợp lệ' });
+    req.user = user; // { userId, role }
     next();
-  } catch (err) {
-    return res.status(403).json({ message: 'Token không hợp lệ' });
+  });
+};
+
+const requireAdminOrLibrarian = (req, res, next) => {
+  if (req.user.role === 'admin' || req.user.role === 'librarian') {
+    next();
+  } else {
+    res.status(403).json({ message: 'Không có quyền truy cập' });
   }
 };
 
-module.exports = verifyToken;
+module.exports = { verifyToken, requireAdminOrLibrarian };

@@ -4,6 +4,24 @@ const mongoose = require('mongoose');
 const BookCopy = require('../models/BookCopy');
 const Shelf = require('../models/Shelves');
 
+/**
+ * @swagger
+ * /api/bookcopies/available-count/{bookId}:
+ *   get:
+ *     summary: Đếm số lượng BookCopy có sẵn theo bookId
+ *     tags: [BookCopies]
+ *     parameters:
+ *       - in: path
+ *         name: bookId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Trả về số lượng có sẵn
+ *       500:
+ *         description: Lỗi server
+ */
 // đếm số lượng sách có sẵn
 router.get('/available-count/:bookId', async (req, res) => {
   try {
@@ -17,6 +35,27 @@ router.get('/available-count/:bookId', async (req, res) => {
   }
 });
 
+
+/**
+ * @swagger
+ * /api/bookcopies/borrow/{bookId}:
+ *   put:
+ *     summary: Đánh dấu một bản sao của sách là đang được mượn
+ *     tags: [BookCopies]
+ *     parameters:
+ *       - in: path
+ *         name: bookId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Mượn thành công
+ *       404:
+ *         description: Không còn bản sao khả dụng
+ *       500:
+ *         description: Lỗi server
+ */
 // gửi yêu cầu mượn (borrowRequest)
 router.put('/borrow/:bookId', async (req, res) => {
     try {
@@ -41,6 +80,18 @@ router.put('/borrow/:bookId', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/bookcopies:
+ *   get:
+ *     summary: Lấy danh sách tất cả BookCopy
+ *     tags: [BookCopies]
+ *     responses:
+ *       200:
+ *         description: Danh sách BookCopy
+ *       500:
+ *         description: Lỗi server
+ */
 // lấy danh sách tất cả BookItem
 router.get('/', async (req, res) => {
   try {
@@ -52,6 +103,24 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/bookcopies/{id}:
+ *   get:
+ *     summary: Lấy thông tin BookCopy theo ID
+ *     tags: [BookCopies]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Trả về bản sao sách
+ *       404:
+ *         description: Không tìm thấy
+ */
 // lấy BookItem theo id
 router.get('/:id', async (req, res) => {
   try {
@@ -64,6 +133,24 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/bookcopies/by-book/{bookId}:
+ *   get:
+ *     summary: Lấy danh sách BookCopy theo bookId
+ *     tags: [BookCopies]
+ *     parameters:
+ *       - in: path
+ *         name: bookId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Danh sách bản sao
+ *       500:
+ *         description: Lỗi server
+ */
 // lấy danh sách bookCopy theo book_id
 router.get('/by-book/:bookId', async (req, res) => {
   try {
@@ -75,6 +162,33 @@ router.get('/by-book/:bookId', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/bookcopies/bulk-update-shelf:
+ *   put:
+ *     summary: Gán đồng loạt shelf_id cho nhiều BookCopy và cập nhật capacity
+ *     tags: [BookCopies]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               shelf_id:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Gán kệ thành công
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       500:
+ *         description: Lỗi server
+ */
 // Gán đồng loạt shelf_id cho nhiều BookCopy
 router.put('/bulk-update-shelf', async (req, res) => {
   const session = await mongoose.startSession();
@@ -116,6 +230,37 @@ router.put('/bulk-update-shelf', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/bookcopies/{id}:
+ *   put:
+ *     summary: Cập nhật thông tin BookCopy (kệ, trạng thái, ảnh hư hỏng)
+ *     tags: [BookCopies]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               shelf_id:
+ *                 type: number
+ *               status:
+ *                 type: string
+ *               damage_image:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Cập nhật thành công
+ *       500:
+ *         description: Lỗi server
+ */
 // update bookCopy
 router.put('/:id', async (req, res) => {
   try {
@@ -159,6 +304,35 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/bookcopies/{copyId}/status:
+ *   put:
+ *     summary: Cập nhật trạng thái của BookCopy cụ thể
+ *     tags: [BookCopies]
+ *     parameters:
+ *       - in: path
+ *         name: copyId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               newStatus:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Trạng thái được cập nhật
+ *       404:
+ *         description: Không tìm thấy bản sao
+ *       500:
+ *         description: Lỗi server
+ */
 // cập nhật trạng thái BookCopy
 router.put('/:copyId/status', async (req, res) => {
   const { newStatus } = req.body;

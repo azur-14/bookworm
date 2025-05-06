@@ -5,6 +5,25 @@ const ReturnRequest = require('../models/ReturnRequest');
 const BorrowRequest = require('../models/BorrowRequest');
 const StatusHistory = require('../models/RequestStatusHistory');
 
+/**
+ * @swagger
+ * /api/return/user/{userId}:
+ *   get:
+ *     summary: Lấy kết quả mượn sách (return) của người dùng
+ *     tags: [ReturnRequests]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID người dùng
+ *     responses:
+ *       200:
+ *         description: Danh sách yêu cầu trả sách
+ *       500:
+ *         description: Lỗi server
+ */
 // lấy kết quả mượn sách của người dùng hiện tại
 router.get('/user/:userId', async (req, res) => {
     try {
@@ -18,6 +37,18 @@ router.get('/user/:userId', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/return:
+ *   get:
+ *     summary: Lấy tất cả yêu cầu trả sách
+ *     tags: [ReturnRequests]
+ *     responses:
+ *       200:
+ *         description: Thành công
+ *       500:
+ *         description: Lỗi server
+ */
 // Lấy toàn bộ return requests
 router.get('/', async (req, res) => {
   try {
@@ -29,6 +60,29 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/return:
+ *   post:
+ *     summary: Tạo yêu cầu trả sách mới
+ *     tags: [ReturnRequests]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               borrowRequestId:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Tạo thành công
+ *       500:
+ *         description: Lỗi khi tạo yêu cầu
+ */
 // Tạo returnRequest mới khi đã nhận sách
 router.post('/', async (req, res) => {
   try {
@@ -46,6 +100,43 @@ router.post('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/return/{id}/status:
+ *   put:
+ *     summary: Cập nhật trạng thái yêu cầu trả sách và ghi lịch sử
+ *     tags: [ReturnRequests]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               newStatus:
+ *                 type: string
+ *               changedBy:
+ *                 type: string
+ *               reason:
+ *                 type: string
+ *               condition:
+ *                 type: string
+ *               returnImageBase64:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Cập nhật thành công
+ *       404:
+ *         description: Không tìm thấy yêu cầu
+ *       500:
+ *         description: Lỗi server
+ */
 // Cập nhật trạng thái ReturnRequest và lưu lịch sử
 router.put('/:id/status', async (req, res) => {
   const { newStatus, changedBy, reason, condition, returnImageBase64 } = req.body;
