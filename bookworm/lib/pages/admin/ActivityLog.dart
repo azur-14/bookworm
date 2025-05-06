@@ -87,6 +87,7 @@ class _ActivityLogAdminPageState extends State<ActivityLogAdminPage> {
       appBar: AppBar(
         title: const Text('User Activity Logs'),
         backgroundColor: AppColors.primary,
+        titleTextStyle: TextStyle(color: Colors.white)
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -96,47 +97,6 @@ class _ActivityLogAdminPageState extends State<ActivityLogAdminPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Wrap(
-                      runSpacing: 12,
-                      spacing: 16,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(minWidth: 200, maxWidth: 300),
-                          child: DropdownButtonFormField<String>(
-                            value: selectedUserId,
-                            decoration: const InputDecoration(
-                              labelText: "Filter by User",
-                              border: OutlineInputBorder(),
-                            ),
-                            items: users.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
-                            onChanged: (val) => setState(() => selectedUserId = val),
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: AppColors.white,
-                          ),
-                          onPressed: _selectDateRange,
-                          icon: const Icon(Icons.date_range),
-                          label: const Text("Select Date"),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.refresh, color: AppColors.primary),
-                          onPressed: _loadLogs,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Expanded(
-                  child: Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 2,
                     child: Padding(
@@ -171,7 +131,7 @@ class _ActivityLogAdminPageState extends State<ActivityLogAdminPage> {
                       ),
                     ),
                   ),
-                )
+
               ],
             ),
           );

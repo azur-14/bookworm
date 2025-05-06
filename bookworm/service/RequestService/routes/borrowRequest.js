@@ -117,7 +117,7 @@ router.put('/:id/status', async (req, res) => {
       return res.status(404).json({ message: 'Borrow request not found' });
     }
 
-    if (newStatus === 'cancelled') {
+    if (newStatus === 'cancelled' || newStatus === 'rejected') {
       const borrowRequest = await BorrowRequest.findOne({ id: req.params.id });
       if (borrowRequest?.book_copy_id) {
         await axios.put(`http://localhost:3003/api/bookcopies/${borrowRequest.book_copy_id}/status`, {
