@@ -272,4 +272,33 @@ router.post('/titles', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/books/{id}:
+ *   get:
+ *     summary: Lấy thông tin sách theo ID
+ *     tags: [Books]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Trả về thông tin sách
+ *       404:
+ *         description: Không tìm thấy sách
+ */
+// Lấy thông tin sách theo ID
+router.get('/:id', async (req, res) => {
+  try {
+    const book = await Book.findOne({ id: req.params.id });
+    if (!book) return res.status(404).json({ message: 'Book not found' });
+    res.json(book);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;
