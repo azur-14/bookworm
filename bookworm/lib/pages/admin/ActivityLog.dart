@@ -87,58 +87,69 @@ class _ActivityLogAdminPageState extends State<ActivityLogAdminPage> {
       appBar: AppBar(
         title: const Text('User Activity Logs'),
         backgroundColor: AppColors.primary,
-        titleTextStyle: TextStyle(color: Colors.white)
+        titleTextStyle: const TextStyle(color: Colors.white),
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: LayoutBuilder(
-                        builder: (context, tableConstraints) {
-                          return SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(minWidth: tableConstraints.maxWidth),
-                              child: DataTable(
-                                columnSpacing: 32,
-                                headingRowColor: MaterialStateProperty.all(AppColors.primary.withOpacity(0.1)),
-                                columns: const [
-                                  DataColumn(label: Text("Thời gian")),
-                                  DataColumn(label: Text("Người thực hiện")),
-                                  DataColumn(label: Text("Hành động")),
-                                  DataColumn(label: Text("Đối tượng")),
-                                  DataColumn(label: Text("Mô tả")),
-                                ],
-                                rows: logs.map((log) => DataRow(cells: [
-                                  DataCell(Text(DateFormat('yyyy-MM-dd HH:mm').format(log.timestamp))),
-                                  DataCell(Text(log.adminId)),
-                                  DataCell(Text(log.actionType)),
-                                  DataCell(Text('${log.targetType} (${log.targetId})')),
-                                  DataCell(Text(log.description)),
-                                ])).toList(),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Nếu có filter hoặc button, giữ ở đây
+            // ...
+            const SizedBox(height: 16),
 
-              ],
+            // Card chứa bảng, bọc trong Expanded để chiếm không gian
+            Expanded(
+              child: Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: LayoutBuilder(
+                    builder: (context, tableConstraints) {
+                      return SingleChildScrollView(
+                        // scroll dọc
+                        scrollDirection: Axis.vertical,
+                        child: ConstrainedBox(
+                          // đảm bảo chiều ngang ít nhất bằng màn hình
+                          constraints: BoxConstraints(minWidth: tableConstraints.maxWidth),
+                          child: SingleChildScrollView(
+                            // scroll ngang
+                            scrollDirection: Axis.horizontal,
+                            child: DataTable(
+                              columnSpacing: 32,
+                              headingRowColor: MaterialStateProperty.all(
+                                AppColors.primary.withOpacity(0.1),
+                              ),
+                              columns: const [
+                                DataColumn(label: Text("Thời gian")),
+                                DataColumn(label: Text("Người thực hiện")),
+                                DataColumn(label: Text("Hành động")),
+                                DataColumn(label: Text("Đối tượng")),
+                                DataColumn(label: Text("Mô tả")),
+                              ],
+                              rows: logs.map((log) => DataRow(cells: [
+                                DataCell(Text(DateFormat('yyyy-MM-dd HH:mm').format(log.timestamp))),
+                                DataCell(Text(log.adminId)),
+                                DataCell(Text(log.actionType)),
+                                DataCell(Text('${log.targetType} (${log.targetId})')),
+                                DataCell(Text(log.description)),
+                              ])).toList(),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
+
 
   Future<List<ActivityLog>> fetchAllActivityLogs() async {
     final uri = Uri.parse('http://localhost:3004/api/logs');
