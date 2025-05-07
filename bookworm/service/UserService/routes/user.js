@@ -429,7 +429,7 @@ router.delete('/:id', verifyToken, requireAdminOrLibrarian, async (req, res) => 
  *       400:
  *         description: Sai định dạng
  */
-router.post('/emails', verifyToken, requireAdminOrLibrarian, async (req, res) => {
+router.post('/emails', async (req, res) => {
   const { userIds } = req.body;
   if (!Array.isArray(userIds)) {
     return res.status(400).json({ error: 'userIds phải là mảng' });

@@ -290,7 +290,7 @@ router.post('/send-overdue-email/:borrowId', async (req, res) => {
     // 1. Tìm phiếu mượn
     const request = await BorrowRequest.findOne({ id: borrowId });
     if (!request) return res.status(404).json({ error: 'Không tìm thấy yêu cầu mượn' });
-
+    console.log(request.user_id);
     // 2. Lấy thông tin sách và người dùng
     const [bookRes, userRes] = await Promise.all([
       axios.get(`http://localhost:3003/api/books/${request.book_id}`),
