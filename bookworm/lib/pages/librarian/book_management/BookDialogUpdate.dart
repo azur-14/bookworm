@@ -31,7 +31,8 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
   late TextEditingController totalCtl;
   late TextEditingController availCtl;
   String _adminId = 'unknown_admin';
-
+  int _prevTotalQty = 0;
+  int _prevAvailQty = 0;
   Uint8List? imageBytes;
 
   @override
@@ -42,6 +43,8 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
         _adminId = prefs.getString('userId') ?? 'unknown_admin';
       });
     });
+    _prevTotalQty = widget.book.totalQuantity;
+    _prevAvailQty = widget.book.availableQuantity;
     titleCtl = TextEditingController(text: widget.book.title);
     authorCtl = TextEditingController(text: widget.book.author);
     pubCtl = TextEditingController(text: widget.book.publisher);
@@ -70,6 +73,32 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
     availCtl.dispose();
     super.dispose();
   }
+  Widget _numberInput(String label, TextEditingController ctl, {
+    required int prevValue,
+    required void Function(int) onValid,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: TextField(
+        controller: ctl,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(labelText: label, border: OutlineInputBorder()),
+        onChanged: (val) {
+          final input = int.tryParse(val) ?? prevValue;
+          if (input < prevValue) {
+            // Quay về giá trị trước, không cho giảm
+            ctl.text = prevValue.toString();
+            ctl.selection = TextSelection.fromPosition(
+              TextPosition(offset: ctl.text.length),
+            );
+          } else {
+            // Hợp lệ, cập nhật prev và giữ cho Valid
+            onValid(input);
+          }
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,22 +114,30 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
             _input(yearCtl, 'Publish Year', number: true),
             _input(priceCtl, 'Price', number: true),
             _dropdownCategory(),
-            _numberInput('Total Quantity', totalCtl, onChanged: (v) {
-              // ensure available ≤ total
-              final total = v < 0 ? 0 : v;
-              totalCtl.text = total.toString();
-              final avail = int.tryParse(availCtl.text) ?? 0;
-              if (avail > total) {
-                availCtl.text = total.toString();
-              }
-            }),
-            _numberInput('Available Quantity', availCtl, onChanged: (v) {
-              final total = int.tryParse(totalCtl.text) ?? widget.book.totalQuantity;
-              int avail = v;
-              if (avail < 0) avail = 0;
-              if (avail > total) avail = total;
-              availCtl.text = avail.toString();
-            }),
+            // DÙng _numberInput với prev và onValid riêng
+            _numberInput(
+              'Total Quantity',
+              totalCtl,
+              prevValue: _prevTotalQty,
+              onValid: (v) => setState(() => _prevTotalQty = v),
+            ),
+            _numberInput(
+              'Available Quantity',
+              availCtl,
+              prevValue: _prevAvailQty,
+              onValid: (v) {
+                final cap = _prevTotalQty;
+                final safe = v > cap ? cap : v;
+                setState(() => _prevAvailQty = safe);
+                if (safe != v) {
+                  // nếu nhập > tổng, reset về cap
+                  availCtl.text = safe.toString();
+                  availCtl.selection = TextSelection.fromPosition(
+                    TextPosition(offset: availCtl.text.length),
+                  );
+                }
+              },
+            ),
             _input(descCtl, 'Description'),
             _pickImageButton(),
           ],
@@ -108,13 +145,11 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
-        ElevatedButton(
-          onPressed: _handleUpdateBook,
-          child: const Text('UPDATE'),
-        ),
+        ElevatedButton(onPressed: _handleUpdateBook, child: const Text('UPDATE')),
       ],
     );
   }
+
 
   Widget _input(TextEditingController ctl, String label, {bool number = false}) {
     return Padding(
@@ -127,20 +162,6 @@ class _BookDialogUpdateState extends State<BookDialogUpdate> {
     );
   }
 
-  Widget _numberInput(String label, TextEditingController ctl, {required void Function(int) onChanged}) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: TextField(
-        controller: ctl,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-        onChanged: (val) {
-          final v = int.tryParse(val) ?? 0;
-          onChanged(v);
-        },
-      ),
-    );
-  }
 
   Widget _dropdownCategory() {
     final cat = widget.categories.firstWhere((c) => c.id == widget.book.categoryId);

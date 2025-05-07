@@ -496,6 +496,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
               Text('Borrow ID: ${b.id}'),
               Text('User: ${b.userEmail ?? b.userId}'),
               Text('Book: ${b.bookTitle}'),
+              Text('BookCopyId: ${b.bookCopyId}'),
               Text(
                   'Requested: ${DateFormat('yyyy-MM-dd HH:mm').format(b.requestDate)}'),
               if (b.receiveDate != null)
