@@ -2,7 +2,7 @@ class ReturnRequest {
   final String id;
   final String borrowRequestId;
   String status;            // 'processing', 'completed', 'overdue'
-  final DateTime returnDate;
+  DateTime? returnDate;
   String? returnImageBase64;
   String? condition;
 
@@ -13,7 +13,7 @@ class ReturnRequest {
     DateTime? returnDate,
     this.returnImageBase64,
     this.condition,
-  }) : returnDate = returnDate ?? DateTime.now();
+  });
 
   factory ReturnRequest.fromJson(Map<String, dynamic> json) {
     return ReturnRequest(
@@ -33,7 +33,7 @@ class ReturnRequest {
       'id': id,
       'borrow_request_id': borrowRequestId,
       'status': status,
-      'return_date': returnDate.toIso8601String(),
+      'return_date': returnDate?.toIso8601String(),
       'return_image_base64': returnImageBase64,
       'condition': condition,
     };

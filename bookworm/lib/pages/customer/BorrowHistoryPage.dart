@@ -107,11 +107,14 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
       if (ret.condition != null && ret.condition!.isNotEmpty) {
         return 'Hư hao';
       }
-      if (r.dueDate != null && ret.returnDate.isAfter(r.dueDate!)) {
+      // unwrap returnDate và dueDate trước khi so sánh
+      if (ret.returnDate != null && r.dueDate != null
+          && ret.returnDate!.isAfter(r.dueDate!)) {
         return 'Trả quá hạn';
       }
       return 'Đã trả';
     }
+
     return 'Không rõ';
   }
 
@@ -182,7 +185,14 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
             Text('Yêu cầu: ${formatDate(r.requestDate)}'),
             if (r.receiveDate != null) Text('Nhận: ${formatDate(r.receiveDate!)}'),
             Text('Hạn trả: ${formatDate(r.dueDate!)}'),
-            if (ret != null) Text('Trả: ${formatDate(ret.returnDate)}'),
+            if (ret != null) ...[
+              if (ret.returnDate != null)
+                Text('Trả: ${formatDate(ret.returnDate!)}')
+              else
+                Text('Trả: (chưa có ngày trả)',
+                    style: TextStyle(fontStyle: FontStyle.italic)),
+            ],
+
             const SizedBox(height: 8),
             Text('Trạng thái: $status', style: TextStyle(color: getStatusColor(status))),
           ],

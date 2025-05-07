@@ -115,15 +115,20 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   /// Note: ret.status 'overdue' giờ cũng thành 'Đang mượn'
   String getCombinedStatus(BorrowRequest r) {
     final ret = _getReturn(r);
-    if (r.status == 'pending') return 'Chờ duyệt';
-    if (r.status == 'rejected') return 'Từ chối';
+    if (r.status == 'pending')              return 'Chờ duyệt';
+    if (r.status == 'rejected')             return 'Từ chối';
     if (r.status == 'approved' && ret == null) return 'Chờ nhận';
-    if (r.status=='received' && ret != null && ret.status == 'processing') {
+
+    // ← Thêm dòng này để bao gồm cả received/chưa trả vào "Đang mượn"
+    if (r.status == 'received' && ret == null) return 'Đang mượn';
+
+    if (r.status == 'received' && ret != null && ret.status == 'processing')
       return 'Đang mượn';
-    }
-    if (ret != null && ret.status == 'completed') return 'Đã trả';
+    if (ret != null && ret.status == 'completed')
+      return 'Đã trả';
     return 'Không rõ';
   }
+
 
   Color _statusColor(String label) {
     switch (label) {
@@ -242,15 +247,15 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
 
   Widget _buildStatusTab(String label) {
     // 1. NHÁNH CHO 'Đã trả' — dùng ReturnRequest
+
     if (label == 'Đã trả') {
       final list = _returns
-          .where((r) => r.status == 'completed')
+          .where((r) => r.status == 'completed' && (r.condition == null || r.condition == 'Nguyên vẹn'))
           .toList()
-        ..sort((a, b) => b.returnDate.compareTo(a.returnDate));
+        ..sort((a, b) => b.returnDate!.compareTo(a.returnDate!));
 
-      if (list.isEmpty) {
-        return Center(child: Text('Không có "$label".'));
-      }
+      if (list.isEmpty) return Center(child: Text('Không có "$label".'));
+
 
       return ListView.builder(
         padding: const EdgeInsets.all(12),
@@ -258,15 +263,11 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
         itemBuilder: (_, i) {
           final r = list[i];
           final borrow = _borrows.firstWhere((b) => b.id == r.borrowRequestId);
-
           return Card(
             elevation: 2,
             margin: const EdgeInsets.only(bottom: 12),
             child: ListTile(
-              onTap: () {
-                final borrow = _borrows.firstWhere((b) => b.id == r.borrowRequestId);
-                _showBorrowReturnInfo(borrow);
-              },
+              onTap: () => _showBorrowReturnInfo(borrow),
               leading: CircleAvatar(
                 backgroundColor: _statusColor(label),
                 child: Icon(_statusIcon(label), color: AppColors.white),
@@ -277,9 +278,8 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                 children: [
                   Text('User: ${borrow.userEmail ?? borrow.userId}'),
                   Text('Book: ${borrow.bookTitle}'),
-                  Text('Returned: ${DateFormat('yyyy-MM-dd').format(r.returnDate)}'),
-                  if (r.condition != null && r.condition!.isNotEmpty)
-                    Text('Condition: ${r.condition}'),
+                  Text('Returned: ${DateFormat('yyyy-MM-dd').format(r.returnDate!)}'),
+                  Text('Condition: ${r.condition}'),
                 ],
               ),
             ),
@@ -287,7 +287,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
         },
       );
     }
-
     // 2. NHÁNH CHO CÁC TRẠNG THÁI CÒN LẠI — dùng BorrowRequest
     final list = _byStatus(label);
     if (list.isEmpty) {
@@ -359,18 +358,51 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
           }
         }
         else if (label == 'Đang mượn') {
-          final ret = _getReturn(b);
-          if (ret != null) {
+          final ret = _getReturn(b); // ReturnRequest (nếu có)
+          final now = DateTime.now();
+          final due = b.dueDate!; // Hạn trả
+
+          // 1. Tính xem đã quá hạn hay chưa
+          final isOverdue = ret == null && now.isAfter(due);
+
+          if (isOverdue) {
+            trailing = Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.warning, color: Colors.red),
+                const SizedBox(height: 4),
+                const Text('Quá hạn trả', style: TextStyle(color: Colors.red)),
+                TextButton(
+                  // Gọi trực tiếp API nhắc dựa trên borrow ID
+                  onPressed: () => sendOverdueEmail(b.id!),
+                  child: const Text('Gửi nhắc quá hạn'),
+                ),
+              ],
+            );
+          }
+
+          else if (ret != null && ret.status == 'processing') {
+            final now = DateTime.now();
+            final isReturnOverdue = now.isAfter(b.dueDate!);
+
             trailing = Wrap(spacing: 8, children: [
-              if (ret.status == 'processing')
-                TextButton(onPressed: () => _showCompleteReturnDialog(ret), child: const Text('Hoàn thành')),
-              if (ret.status == 'overdue')
-                TextButton(onPressed: () => _sendOverdueEmail(ret), child: const Text('Email overdue')),
+              // Nút hoàn thành trả
+              TextButton(
+                onPressed: () => _showCompleteReturnDialog(ret),
+                child: const Text('Hoàn thành'),
+              ),
+
+              // Nút nhắc quá hạn, chỉ active khi overdue
+              TextButton(
+                onPressed: isReturnOverdue
+                    ? () => sendOverdueEmail(b.id!)
+                    : null, // null sẽ disable button
+                child: const Text('Nhắc quá hạn'),
+              ),
             ]);
           }
         }
-
-        return Card(
+          return Card(
           color: cardColor,
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 12),
@@ -448,7 +480,6 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       );
     }
   }
-
   void _showBorrowReturnInfo(BorrowRequest b) {
     final ret = _getReturn(b);
 
@@ -460,22 +491,36 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('— Thông tin mượn —', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('— Thông tin mượn —',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               Text('Borrow ID: ${b.id}'),
               Text('User: ${b.userEmail ?? b.userId}'),
               Text('Book: ${b.bookTitle}'),
-              Text('Requested: ${DateFormat('yyyy-MM-dd HH:mm').format(b.requestDate)}'),
+              Text(
+                  'Requested: ${DateFormat('yyyy-MM-dd HH:mm').format(b.requestDate)}'),
               if (b.receiveDate != null)
-                Text('Received: ${DateFormat('yyyy-MM-dd HH:mm').format(b.receiveDate!)}'),
-              Text('Due: ${DateFormat('yyyy-MM-dd HH:mm').format(b.dueDate!)}'),
+                Text(
+                    'Received: ${DateFormat('yyyy-MM-dd HH:mm').format(b.receiveDate!)}'),
+              Text(
+                  'Due: ${DateFormat('yyyy-MM-dd HH:mm').format(b.dueDate!)}'),
 
               if (ret != null) ...[
                 const SizedBox(height: 16),
-                const Text('— Thông tin trả —', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text('— Thông tin trả —',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
                 Text('Return ID: ${ret.id}'),
-                Text('Returned: ${DateFormat('yyyy-MM-dd HH:mm').format(ret.returnDate)}'),
+
+                // chỉ show “Returned:” khi ret.returnDate != null
+                if (ret.returnDate != null)
+                  Text(
+                      'Returned: ${DateFormat('yyyy-MM-dd HH:mm').format(ret.returnDate!)}')
+                else
+                  Text('Returned: (đang chờ hoàn trả)',
+                      style: const TextStyle(fontStyle: FontStyle.italic)),
+
                 if (ret.condition != null && ret.condition!.isNotEmpty)
                   Text('Condition: ${ret.condition}'),
+
                 if (ret.returnImageBase64 != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
@@ -498,6 +543,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       ),
     );
   }
+
   String _mapConditionToCopyStatus(String condition) {
     switch (condition) {
       case 'Hư hao nhẹ':
@@ -728,16 +774,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   }
 
 
-  void _sendOverdueEmail(ReturnRequest r) async {
-    await sendOverdueEmail(r.borrowRequestId);
 
-    await _logAction(
-      adminId: _userId ?? 'unknown_admin',
-      actionType: 'SEND_EMAIL',
-      targetId: r.borrowRequestId,
-      description: 'Gửi email quá hạn cho phiếu mượn ${r.borrowRequestId}',
-    );
-  }
   Widget _buildHistoryStats() {
     // Tạo map đếm số BorrowRequest cho mỗi label
     final borrowStats = {
@@ -760,10 +797,10 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       ),
     );
   }
-
   Widget _buildHistoryTab() {
     // 1. Widget thống kê
     final stats = _buildHistoryStats();
+    // 2. Danh sách toàn bộ BorrowRequest, sắp xếp mới nhất trước
     final list = List<BorrowRequest>.from(_borrows)
       ..sort((a, b) => b.requestDate.compareTo(a.requestDate));
 
@@ -786,19 +823,33 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
                   onTap: () => _showHistoryDialog(b.id!),
-                  leading: Icon(Icons.swap_horiz, color: AppColors.primary),
+                  leading:
+                  Icon(Icons.swap_horiz, color: AppColors.primary),
                   title: Text('Request ${b.id}'),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Borrowed: ${DateFormat('yyyy-MM-dd').format(b.requestDate)}'),
+                      Text(
+                          'Borrowed: ${DateFormat('yyyy-MM-dd').format(b.requestDate)}'),
                       if (b.receiveDate != null)
-                        Text('Received: ${DateFormat('yyyy-MM-dd').format(b.receiveDate!)}'),
-                      Text('Due: ${DateFormat('yyyy-MM-dd').format(b.dueDate!)}'),
+                        Text(
+                            'Received: ${DateFormat('yyyy-MM-dd').format(b.receiveDate!)}'),
+                      Text(
+                          'Due: ${DateFormat('yyyy-MM-dd').format(b.dueDate!)}'),
+
+                      // Phần trả
                       if (ret != null) ...[
                         const SizedBox(height: 8),
                         const Divider(),
-                        Text('Returned: ${DateFormat('yyyy-MM-dd').format(ret.returnDate)}'),
+                        // Nếu returnDate null thì đang chờ
+                        if (ret.returnDate == null)
+                          Text('Returned: (đang chờ hoàn trả)',
+                              style: const TextStyle(
+                                  fontStyle: FontStyle.italic))
+                        else
+                          Text(
+                              'Returned: ${DateFormat('yyyy-MM-dd').format(ret.returnDate!)}'),
+                        // Nếu có condition thì hiển thị
                         if (ret.condition?.isNotEmpty ?? false)
                           Text('Condition: ${ret.condition}'),
                       ],
@@ -812,6 +863,7 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
       ],
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -881,8 +933,8 @@ class _BorrowReturnReviewPageState extends State<BorrowReturnReviewPage>
   }
 
   Future<void> sendOverdueEmail(String borrowRequestId) async {
-    final url = Uri.parse('http://localhost:3002/api/send-overdue-email/$borrowRequestId');
-
+    final url = Uri.parse('http://localhost:3002/api/borrowRequest/send-overdue-email/$borrowRequestId');
+print(borrowRequestId);
     try {
       final response = await http.post(url);
 
