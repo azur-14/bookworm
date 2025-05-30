@@ -76,12 +76,13 @@ class _SignInPageState extends State<SignInPage> {
                             onPressed: () {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(
-                                    builder: (context) =>
-                                    ForgotPasswordPage()),
+                                MaterialPageRoute(builder: (_) => ForgotPasswordPage()),
                               );
                             },
-                            child: const Text('Forgot password?'),
+                            child: const Text(
+                              'Forgot password?',
+                              style: TextStyle(color: Colors.brown),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),

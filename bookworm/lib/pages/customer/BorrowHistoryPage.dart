@@ -21,11 +21,22 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
   List<BookItem> bookItems = [];
   List<BorrowRequest> borrowRequests = [];
   List<ReturnRequest> returnRequests = [];
-
+  final TextEditingController _searchCtl = TextEditingController();
+  String _searchText = '';
+  final List<String> _sortOptions = [
+    'Ngày mới nhất',
+    'Ngày cũ nhất',
+    'Tên A-Z',
+    'Tên Z-A',
+  ];
+  String _sortOption = 'Ngày mới nhất';
   @override
   void initState() {
     super.initState();
     _loadData();
+    _searchCtl.addListener(() {
+      setState(() => _searchText = _searchCtl.text.toLowerCase());
+    });
   }
 
   Future<void> _loadData() async {
@@ -216,9 +227,40 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
   }
 
   Widget _buildList(String statusLabel) {
-    final list = getByCombinedStatus(statusLabel);
-    if (list.isEmpty) return const Center(child: Text('Không có dữ liệu.'));
+    // 1) Lọc theo status
+    var list = getByCombinedStatus(statusLabel);
+    // 2) Lọc theo search text (book title)
+    list = list.where((r) {
+      final copy = getCopy(r.bookCopyId);
+      final book = copy != null ? getBook(copy.bookId) : null;
+      return book != null &&
+          book.title.toLowerCase().contains(_searchText);
+    }).toList();
+    // 3) Sort theo lựa chọn
+    list.sort((a, b) {
+      switch (_sortOption) {
+        case 'Ngày mới nhất':
+          return b.requestDate.compareTo(a.requestDate);
+        case 'Ngày cũ nhất':
+          return a.requestDate.compareTo(b.requestDate);
+        case 'Tên A-Z': {
+          final ba = getBook(getCopy(a.bookCopyId)!.bookId)!.title;
+          final bb = getBook(getCopy(b.bookCopyId)!.bookId)!.title;
+          return ba.compareTo(bb);
+        }
+        case 'Tên Z-A': {
+          final ba = getBook(getCopy(a.bookCopyId)!.bookId)!.title;
+          final bb = getBook(getCopy(b.bookCopyId)!.bookId)!.title;
+          return bb.compareTo(ba);
+        }
+        default:
+          return b.requestDate.compareTo(a.requestDate);
+      }
+    });
 
+    if (list.isEmpty) {
+      return const Center(child: Text('Không có dữ liệu.'));
+    }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: list.length,
@@ -286,37 +328,89 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final tabs = [
-      'Tất cả',
-      'Chờ duyệt',
-      'Chờ nhận',
-      'Đang mượn',
-      'Trả quá hạn',
-      'Hư hao',
-      'Đã trả',
-      'Từ chối',
-      'Đã hủy',
+      'Tất cả','Chờ duyệt','Chờ nhận','Đang mượn','Trả quá hạn',
+      'Hư hao','Đã trả','Từ chối','Đã hủy',
     ];
 
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Lịch sử mượn sách'),
           backgroundColor: AppColors.primary,
+          // đổi màu text và icon của AppBar thành be:
+          foregroundColor: AppColors.background,
+          title: const Text('Borrowing History'),
           bottom: TabBar(
             isScrollable: true,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.white,
+            labelColor: AppColors.background,
+            unselectedLabelColor: AppColors.inactive,
+            indicatorColor: AppColors.background,
             tabs: tabs.map((t) => Tab(text: t)).toList(),
           ),
         ),
-        body: TabBarView(
-          children: tabs.map((t) => _buildList(t)).toList(),
+        body: Column(
+          children: [
+            // ===== Search & Sort row =====
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: TextField(
+                      controller: _searchCtl,
+                      decoration: InputDecoration(
+                        hintText: 'Tìm kiếm theo tên sách',
+                        prefixIcon: Icon(Icons.search, color: AppColors.primary),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: DropdownButtonFormField<String>(
+                      value: _sortOption,
+                      items: _sortOptions.map((opt) =>
+                          DropdownMenuItem(value: opt, child: Text(opt))
+                      ).toList(),
+                      onChanged: (v) {
+                        if (v != null) setState(() => _sortOption = v);
+                      },
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      iconEnabledColor: AppColors.primary,
+                      style: TextStyle(color: AppColors.primary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ===== Nội dung chính =====
+            Expanded(
+              child: TabBarView(
+                children: tabs.map((status) => _buildList(status)).toList(),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+
 
   Widget _bookImage(Book book) {
     if (book.image.isEmpty) return const SizedBox.shrink();

@@ -1,4 +1,3 @@
-// /pages/user_management/user_management_page.dart
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -6,290 +5,358 @@ import 'package:flutter/scheduler.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import '../../../model/User.dart';
-import 'UserTable.dart';
-import 'UserAddUpdateDialog.dart';
-import 'UserViewDialog.dart';
-import 'UserDeleteDialog.dart';
-import 'SearchBar.dart';
+import '../../../theme/AppColor.dart';
+import '../../librarian/user_management/SearchBar.dart';
+import '../../librarian/user_management/UserAddUpdateDialog.dart';
+import '../../librarian/user_management/UserDeleteDialog.dart';
+import '../../librarian/user_management/UserTable.dart';
+import '../../librarian/user_management/UserViewDialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// /pages/user_management/user_management_page.dart
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({Key? key}) : super(key: key);
-
   @override
   _UserManagementPageState createState() => _UserManagementPageState();
 }
 
-class _UserManagementPageState extends State<UserManagementPage> with SingleTickerProviderStateMixin {
+class _UserManagementPageState extends State<UserManagementPage>
+    with SingleTickerProviderStateMixin {
+  // --- dữ liệu & trạng thái ---
   late final Ticker _ticker;
   late DateTime _currentTime;
-  final List<User> _users = [];
   final TextEditingController _searchCtl = TextEditingController();
+  Timer? _debounce;
+  bool _isLoading = false;
+  String? _errorMessage;
   String _searchQuery = '';
   String _adminId = 'unknown_admin';
+  final List<User> _users = [];
+
+  // filter & sort
+  String _roleFilter = 'All';
+  String _statusFilter = 'All';
+  String _sortField   = 'Name';
+  bool   _sortAsc     = true;
+  final List<String> _status = ['All','Active','Inactive'];
+  final List<String> _sortBy = ['Name','Email'];
+
+  // pagination
+  int _currentPage = 1;
+  static const int _rowsPerPage = 20;
+  int get _totalPages => (_processedUsers.length / _rowsPerPage).ceil().clamp(1, double.infinity).toInt();
+  List<User> get _paginatedUsers {
+    final start = (_currentPage - 1) * _rowsPerPage;
+    return _processedUsers.skip(start).take(_rowsPerPage).toList();
+  }
 
   @override
   void initState() {
     super.initState();
-    SharedPreferences.getInstance().then((prefs) {
-      setState(() {
-        _adminId = prefs.getString('userId') ?? 'unknown_admin';
-      });
+    _initAdmin();
+    _startClock();
+    _loadUsers();
+    _searchCtl.addListener(_onSearchChanged);
+  }
+
+  void _initAdmin() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _adminId = prefs.getString('userId') ?? 'unknown_admin';
     });
+  }
+
+  void _startClock() {
     _currentTime = DateTime.now();
     _ticker = createTicker((_) {
-      if (mounted) {
-        setState(() {
-          _currentTime = DateTime.now();
-        });
-      }
-    });
-    _ticker.start();
-    _loadUsers();
+      if (mounted) setState(() => _currentTime = DateTime.now());
+    })..start();
   }
 
   @override
   void dispose() {
     _ticker.dispose();
+    _searchCtl.removeListener(_onSearchChanged);
     _searchCtl.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
-  Future<List<User>> fetchUsers() async {
-    final role = 'customer';
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token');
-    final response = await http.get(
-        Uri.parse('http://localhost:3000/api/users?role=$role'),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-    );
-    if (response.statusCode == 200) {
-      final List<dynamic> jsonList = json.decode(response.body);
-      return jsonList.map((json) => User.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load users: ${response.body}');
-    }
+  void _onSearchChanged() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        _searchQuery = _searchCtl.text.trim();
+        _currentPage = 1; // reset trang khi search thay đổi
+      });
+    });
   }
 
   Future<void> _loadUsers() async {
+    setState(() { _isLoading = true; _errorMessage = null; });
     try {
-      final usersFromServer = await fetchUsers();
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('jwt_token');
+      final res = await http.get(
+        Uri.parse('http://localhost:3000/api/users?role=customer'),
+        headers: {
+          'Content-Type':'application/json',
+          if (token!=null) 'Authorization':'Bearer $token',
+        },
+      );
+      if (res.statusCode != 200) throw Exception(res.body);
+      final data = json.decode(res.body) as List;
       setState(() {
         _users
           ..clear()
-          ..addAll(usersFromServer);
+          ..addAll(data.map((j) => User.fromJson(j)));
+        _currentPage = 1;
       });
     } catch (e) {
-      debugPrint('Lỗi tải danh sách user: $e');
+      setState(() { _errorMessage = 'Không tải được danh sách người dùng'; });
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
-  Future<void> deleteUserFromServer(String id) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token'); // 👈 Lấy token đã lưu
-
-    final res = await http.delete(
-      Uri.parse('http://localhost:3000/api/users/$id'),
-      headers: {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      },
-    );
-
-    if (res.statusCode != 200) {
-      throw Exception('Failed to delete user: ${res.body}');
-    }
-  }
-
-  void _addUser(User newUser) {
-    _logAction(
-      adminId: _adminId,
-      actionType: 'CREATE',
-      targetId: newUser.id,
-      description: 'Thêm người dùng: ${newUser.name} (${newUser.email})',
-    );
-    setState(() {
-      _users.add(newUser);
-    });
-  }
-
-  void _updateUser(User updatedUser) {
-    _logAction(
-      adminId: _adminId,
-      actionType: 'UPDATE',
-      targetId: updatedUser.id,
-      description: 'Cập nhật người dùng: ${updatedUser.name} (${updatedUser.email})',
-    );
-    setState(() {
-      final index = _users.indexWhere((u) => u.id == updatedUser.id);
-      if (index != -1) {
-        _users[index] = updatedUser;
-      }
-    });
-  }
-
-  void _deleteUser(User user) {
-    showDialog(
-      context: context,
-      builder: (ctx) => UserDeleteDialog(
-        user: user,
-        onConfirmDelete: () async {
-          try {
-            await deleteUserFromServer(user.id);
-            setState(() {
-              _users.removeWhere((u) => u.id == user.id);
-            });
-            await _logAction(
-              adminId: _adminId,
-              actionType: 'DELETE',
-              targetId: user.id,
-              description: 'Xoá người dùng: ${user.name} (${user.email})',
-            );
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Đã xoá người dùng')),
-            );
-          } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Lỗi khi xoá người dùng: $e')),
-            );
-          }
-        },
-      ),
-    );
-  }
-
-  void _openAddUserDialog() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      showDialog(
-        context: context,
-        builder: (ctx) => UserAddUpdateDialog(
-          onSubmit: _addUser,
-        ),
-      );
-    });
-  }
-
-  void _openUpdateUserDialog(User user) {
-    showDialog(
-      context: context,
-      builder: (ctx) => UserAddUpdateDialog(
-        user: user,
-        onSubmit: _updateUser,
-      ),
-    );
-  }
-
-  void _openViewUserDialog(User user) {
-    showDialog(
-      context: context,
-      builder: (ctx) => UserViewDialog(user: user),
-    );
-  }
-
-  List<User> _filterUsers() {
-    if (_searchQuery.trim().isEmpty) {
-      return _users;
-    }
-    return _users.where((user) {
-      return user.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          user.email.toLowerCase().contains(_searchQuery.toLowerCase());
+  // Kết hợp Search + Filter + Sort
+  List<User> get _processedUsers {
+    var list = _users.where((u) {
+      final q = _searchQuery.toLowerCase();
+      final matchSearch = u.name.toLowerCase().contains(q) || u.email.toLowerCase().contains(q);
+      final matchRole   = _roleFilter=='All' || u.role==_roleFilter;
+      final matchStatus = _statusFilter=='All' || u.status==_statusFilter;
+      return matchSearch && matchRole && matchStatus;
     }).toList();
+    list.sort((a,b){
+      final cmp = _sortField=='Name'
+          ? a.name.compareTo(b.name)
+          : a.email.compareTo(b.email);
+      return _sortAsc ? cmp : -cmp;
+    });
+    return list;
   }
+
+  void _confirmDelete(User u) => showDialog(
+    context: context,
+    builder: (_) => UserDeleteDialog(
+      user: u,
+      onConfirmDelete: () async {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final token = prefs.getString('jwt_token');
+          final res = await http.delete(
+            Uri.parse('http://localhost:3000/api/users/${u.id}'),
+            headers: {
+              'Content-Type':'application/json',
+              if (token!=null) 'Authorization':'Bearer $token',
+            },
+          );
+          if (res.statusCode!=200) throw Exception(res.body);
+          setState(() {
+            _users.removeWhere((e)=>e.id==u.id);
+            if (_currentPage>_totalPages) _currentPage=_totalPages;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã xóa người dùng')),
+          );
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi xóa: $e')),
+          );
+        }
+      },
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
-    final String formattedTime = DateFormat('hh:mm a').format(_currentTime);
-    final String formattedDate = DateFormat('MMM dd, yyyy').format(_currentTime);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: Container(
-            color: const Color(0xFFFFF3EB),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('User Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _openAddUserDialog,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add User'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.brown[700],
-                        foregroundColor: const Color(0xFFFFF3EB),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    UserSearchBar(
-                      controller: _searchCtl,
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: Card(
-                    elevation: 2,
+    return SafeArea(
+      child: Scaffold(
+        backgroundColor: AppColors.background, // be nhạt
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: _buildHeader(context),
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // --- Search + Filter/Sort ---
+                  Card(
+                    color: Colors.white,
+                    elevation: 1,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: UserTable(
-                        users: _filterUsers(),
-                        onView: _openViewUserDialog,
-                        onEdit: _openUpdateUserDialog,
-                        onDelete: _deleteUser,
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: UserSearchBar(
+                              controller: _searchCtl,
+                              onChanged: (v) => setState((){
+                                _searchQuery = v;
+                                _currentPage = 1;
+                              }),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              _buildDropdown('Status', _statusFilter, _status, (v) => setState(() {
+                                _statusFilter = v!; _currentPage = 1;
+                              })),
+                              const Spacer(),
+                              _buildDropdown('Sort by', _sortField, _sortBy, (v) => setState(() {
+                                _sortField = v!; _currentPage = 1;
+                              })),
+                              IconButton(
+                                icon: Icon(_sortAsc ? Icons.arrow_upward : Icons.arrow_downward),
+                                onPressed: () => setState(() => _sortAsc = !_sortAsc),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-              ],
+
+                  const SizedBox(height: 16),
+
+                  // --- Table ---
+                  Card(
+                    color: Colors.white,
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.all(8),
+                        child: SizedBox(
+                          width: MediaQuery.of(context).size.width - 32,
+                          child: _isLoading
+                              ? const Center(child: CircularProgressIndicator())
+                              : _errorMessage!=null
+                              ? Center(child: Text(_errorMessage!))
+                              : UserTable(
+                            users: _paginatedUsers,
+                            onView: (u) => showDialog(
+                              context: context,
+                              builder: (_) => UserViewDialog(user: u),
+                            ),
+                            onEdit: (u) => showDialog(
+                              context: context,
+                              builder: (_) => UserAddUpdateDialog(
+                                user: u,
+                                onSubmit: (newU) {
+                                  setState(() => _users[_users.indexWhere((e)=>e.id==newU.id)] = newU);
+                                },
+                              ),
+                            ),
+                            onDelete: _confirmDelete,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // --- Pagination Controls ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: _currentPage > 1
+                            ? () => setState(() => _currentPage--)
+                            : null,
+                      ),
+                      Text('Page $_currentPage/$_totalPages'),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: _currentPage < _totalPages
+                            ? () => setState(() => _currentPage++)
+                            : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
+
+            // --- Footer cố định ---
+            Container(
+              color: AppColors.white,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              alignment: Alignment.center,
+              child: Text(
+                DateFormat('MMM dd, yyyy – hh:mm a').format(_currentTime),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
         ),
-        Container(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [Text('$formattedDate, $formattedTime')],
+
+        floatingActionButton: FloatingActionButton(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.white,
+          onPressed: () => showDialog(
+            context: context,
+            builder: (_) => UserAddUpdateDialog(onSubmit: (u){
+              setState(() => _users.add(u));
+            }),
           ),
+          tooltip: 'Tạo người dùng',
+          child: const Icon(Icons.person_add_alt_1),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext ctx) {
+    return Container(
+      color: AppColors.primary,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Text('User Management',
+            style: Theme.of(ctx).textTheme.titleLarge!
+                .copyWith(color: AppColors.white),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            color: AppColors.white,
+            onPressed: _loadUsers,
+            tooltip: 'Tải lại',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdown(
+      String label,
+      String value,
+      List<String> items,
+      ValueChanged<String?> onChanged,
+      ) {
+    return Row(
+      children: [
+        Text('$label:'),
+        const SizedBox(width: 6),
+        DropdownButton<String>(
+          value: value,
+          items: items
+              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+              .toList(),
+          onChanged: onChanged,
         ),
       ],
     );
   }
-
-  Future<void> _logAction({
-    required String adminId,
-    required String actionType,
-    required String targetId,
-    required String description,
-  }) async {
-    final url = Uri.parse('http://localhost:3004/api/logs');
-    await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'adminId': adminId,
-        'actionType': actionType,
-        'targetType': 'User',
-        'targetId': targetId,
-        'description': description,
-      }),
-    );
-  }
-
 }

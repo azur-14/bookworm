@@ -1,4 +1,3 @@
-// lib/pages/BookingReviewPage.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:bookworm/model/RoomBookingRequest.dart';
@@ -20,32 +19,9 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   final TextEditingController _searchCtl = TextEditingController();
   List<RoomBookingRequest> _allRequests = [];
   String _adminId = 'unknown_admin';
+  String _sortBy = 'startTime'; // Tiêu chí sắp xếp: startTime, endTime, roomId, userId
+  bool _sortAscending = true; // Hướng sắp xếp: true (tăng dần), false (giảm dần)
 
-  // Lọc lịch sử
-  String _historyFilter = 'Tất cả';
-  DateTime _historyDate = DateTime.now();
-  int _historyYear = DateTime.now().year;
-  int _historyMonth = DateTime.now().month;
-  int _historyQuarter = ((DateTime.now().month - 1) ~/ 3) + 1;
-  String _statsFilter = 'Tất cả';
-  static const List<String> _statsFilterOptions = [
-    'Tất cả',
-    'Yêu cầu',        // pending
-    'Đã duyệt',       // approved
-    // paid
-    'Đang sử dụng',   // using
-    'Hoàn thành', //completed
-    'Từ chối',        // rejected
-    'Đã hủy',         // cancelled
-  ];
-  static const Map<String, String> _labelToStatus = {
-    'Yêu cầu':       'pending',
-    'Đã duyệt':      'approved',
-    'Đang sử dụng':  'using',
-    'Hoàn thành': 'finished',
-    'Từ chối':       'rejected',
-    'Đã hủy':        'cancelled',
-  };
   @override
   void initState() {
     super.initState();
@@ -55,14 +31,22 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     _loadRequests();
     _searchCtl.addListener(() => setState(() {}));
   }
+
+  @override
+  void dispose() {
+    _searchCtl.dispose();
+    super.dispose();
+  }
+
   static const _tabs = [
-    {'status': 'pending',   'label': 'Yêu cầu'},
-    {'status': 'approved',  'label': 'Đã duyệt'},
-    {'status': 'using',     'label': 'Đang sử dụng'},
-    {'status': 'rejected',  'label': 'Từ chối'},
+    {'status': 'pending', 'label': 'Yêu cầu'},
+    {'status': 'approved', 'label': 'Đã duyệt'},
+    {'status': 'using', 'label': 'Đang sử dụng'},
+    {'status': 'rejected', 'label': 'Từ chối'},
     {'status': 'cancelled', 'label': 'Đã hủy'},
-    {'status': 'stats',     'label': 'Thống kê'},
+    {'status': 'stats', 'label': 'Thống kê'},
   ];
+
   Future<void> _loadRequests() async {
     try {
       final list = await fetchRoomBookingRequests();
@@ -71,10 +55,12 @@ class _BookingReviewPageState extends State<BookingReviewPage>
       debugPrint('Lỗi khi tải yêu cầu: $e');
     }
   }
+
   /// Hiển thị dialog lịch sử thay đổi status cho booking request
+
+// 1. History Dialog
   Future<void> _showHistoryDialog(String requestId) async {
     try {
-      // Gọi API lấy về list<RequestStatusHistory>
       final url = Uri.parse('http://localhost:3002/api/requestStatusHistory/$requestId');
       final res = await http.get(url);
       if (res.statusCode != 200) throw Exception(res.body);
@@ -84,37 +70,64 @@ class _BookingReviewPageState extends State<BookingReviewPage>
 
       await showDialog(
         context: context,
-        builder: (_) => AlertDialog(
-          title: Text('Lịch sử thay đổi: $requestId'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: data.isEmpty
-                ? const Text('Chưa có lịch sử thay đổi.')
-                : ListView.separated(
-              shrinkWrap: true,
-              itemCount: data.length,
-              separatorBuilder: (_, __) => const Divider(),
-              itemBuilder: (_, i) {
-                final h = data[i];
-                final time = DateFormat('yyyy-MM-dd HH:mm').format(h.changeTime);
-                return ListTile(
-                  leading: Icon(Icons.history, color: AppColors.primary),
-                  title: Text('${h.oldStatus} → ${h.newStatus}'),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Lúc: $time'),
-                      Text('Bởi: ${h.changedBy}'),
-                      if (h.reason.isNotEmpty) Text('Lý do: ${h.reason}'),
-                    ],
+        builder: (_) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: 500),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'Lịch sử thay đổi: $requestId',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                );
-              },
+                ),
+                Divider(height: 1),
+                Expanded(
+                  child: data.isEmpty
+                      ? Center(child: Text('Chưa có lịch sử thay đổi.', style: TextStyle(color: Colors.grey)))
+                      : ListView.builder(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    itemCount: data.length,
+                    itemBuilder: (_, i) {
+                      final h = data[i];
+                      final time = DateFormat('yyyy-MM-dd HH:mm').format(h.changeTime);
+                      return Card(
+                        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListTile(
+                          leading: Icon(Icons.history, color: AppColors.primary),
+                          title: Text(
+                            '${h.oldStatus} → ${h.newStatus}',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Lúc: $time'),
+                              Text('Bởi: ${h.changedBy}'),
+                              if (h.reason.isNotEmpty) Text('Lý do: ${h.reason}'),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('Đóng'),
+                  ),
+                ),
+              ],
             ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Đóng')),
-          ],
         ),
       );
     } catch (e) {
@@ -123,6 +136,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
       );
     }
   }
+
 
   Future<List<RoomBookingRequest>> fetchRoomBookingRequests() async {
     final url = Uri.parse('http://localhost:3002/api/roomBookingRequest');
@@ -141,8 +155,8 @@ class _BookingReviewPageState extends State<BookingReviewPage>
       headers: {'Content-Type': 'application/json'},
       body: json.encode({
         'id': bill.id,
-        'borrowRequestId': bill.requestId,    // camelCase khớp schema
-        'type': bill.type,                     // 'room'
+        'borrowRequestId': bill.requestId,
+        'type': bill.type,
         'overdueDays': bill.overdueDays,
         'overdueFee': bill.overdueFee,
         'damageFee': bill.damageFee,
@@ -159,122 +173,184 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     }
   }
 
-  void _showInvoiceDialog(RoomBookingRequest req) {
+  // 2. Invoice Dialog
+  Future<void> _showInvoiceDialog(RoomBookingRequest req) async {
     final now = DateTime.now();
-
-    // 1. Tính số giờ (có thể không nguyên):
-    final durationInMinutes = req.endTime.difference(req.startTime).inMinutes;
-    final durationHours = durationInMinutes / 60.0;
-
-    // 2. Tính phí gốc = số giờ × pricePerHour
-    final double baseFee = durationHours * req.pricePerHour;
-
-    // 3. Tính phí quá hạn & hỏng hóc như cũ
-    final overdueDays =
-    now.isAfter(req.endTime) ? now.difference(req.endTime).inDays : 0;
-    final int overdueFee = overdueDays * 10000;
-    final double damageFee =
-    req.purpose.contains('hư hỏng') ? 50000.0 : 0.0;
-
-    // 4. Tổng tiền
-    final double totalFee = baseFee + overdueFee + damageFee;
-
+    final minutes = req.endTime.difference(req.startTime).inMinutes;
+    final hours = minutes / 60.0;
+    final pricePerHour = req.pricePerHour ?? 0.0;
+    final base = hours * pricePerHour;
+    final overdueDays = now.isAfter(req.endTime) ? now.difference(req.endTime).inDays : 0;
+    final overdueFee = overdueDays * 10000;
+    final damageFee = req.purpose?.contains('hư hỏng') == true ? 50000.0 : 0.0;
+    final total = base + overdueFee + damageFee;
     final amountCtl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Thanh toán & Hóa đơn'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Yêu cầu ID: ${req.id}'),
-            const SizedBox(height: 8),
-            Text('Thời gian: ${DateFormat('yyyy-MM-dd HH:mm').format(req.startTime)} → ${DateFormat('HH:mm').format(req.endTime)}'),
-            const SizedBox(height: 8),
-            Text('Số giờ sử dụng: ${durationHours.toStringAsFixed(2)}h'),
-            Text('Phí/giờ: ${req.pricePerHour.toStringAsFixed(0)}₫'),
-            Text('Tạm tính: ${baseFee.toStringAsFixed(0)}₫'),
-            const Divider(),
-            Text('TỔNG: ${totalFee.toStringAsFixed(0)}₫',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountCtl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Khách thanh toán (₫)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
-          ElevatedButton(
-            onPressed: () async {
-              final paid = double.tryParse(amountCtl.text.trim()) ?? 0;
-              final change = paid - totalFee;
-              // Tạo đối tượng Bill
-              final bill = Bill(
-                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                requestId: req.id,
-                type: 'room',
-                overdueDays: overdueDays,
-                overdueFee: overdueFee,
-                damageFee: damageFee,
-                totalFee: totalFee,           // <-- dùng totalFee vừa tính
-                amountReceived: paid,
-                changeGiven: change < 0 ? 0 : change,
-              );
-              try {
-                await _postBill(bill);
-                await _updateStatus(req, 'using');
-                Navigator.pop(context);
-                _showBillPreview(bill);  // pass luôn bill local
 
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Lỗi tạo hóa đơn: $e')),
-                );
-              }
-            },
-            child: const Text('Xác nhận'),
+    await showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: EdgeInsets.all(24),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Text('Thanh toán & Hóa đơn', style: Theme.of(context).textTheme.titleLarge),
+              ),
+              SizedBox(height: 16),
+              Table(
+                columnWidths: {0: FlexColumnWidth(2), 1: FlexColumnWidth(1)},
+                children: [
+                  _buildRow('Yêu cầu ID', req.id),
+                  _buildRow(
+                    'Thời gian',
+                    '${DateFormat('yyyy-MM-dd HH:mm').format(req.startTime)} → ${DateFormat('HH:mm').format(req.endTime)}',
+                  ),
+                  _buildRow('Giờ sử dụng', '${hours.toStringAsFixed(2)}h'),
+                  _buildRow('Phí/giờ', '${pricePerHour.toStringAsFixed(0)}₫'),
+                  _buildRow('Tạm tính', '${base.toStringAsFixed(0)}₫'),
+                  _buildRow('Quá hạn', '$overdueDays ngày → ${overdueFee.toStringAsFixed(0)}₫'),
+                  _buildRow('Hư hỏng', '${damageFee.toStringAsFixed(0)}₫'),
+                  TableRow(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text('TỔNG', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text('${total.toStringAsFixed(0)}₫', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              TextField(
+                controller: amountCtl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Khách thanh toán (₫)',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(onPressed: () => Navigator.pop(context), child: Text('Hủy')),
+                  SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final paid = double.tryParse(amountCtl.text.trim()) ?? 0;
+                      final change = paid - total;
+                      final bill = Bill(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        requestId: req.id,
+                        type: 'room',
+                        date: now,
+                        overdueDays: overdueDays,
+                        overdueFee: overdueFee,
+                        damageFee: damageFee,
+                        totalFee: total,
+                        amountReceived: paid,
+                        changeGiven: change < 0 ? 0 : change,
+                      );
+                      try {
+                        await _postBill(bill);
+                        await _updateStatus(req, 'using');
+                        Navigator.pop(context);
+                        _showBillPreview(bill);
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Lỗi tạo hóa đơn: $e')),
+                        );
+                      }
+                    },
+                    child: Text('Xác nhận'),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
+  TableRow _buildRow(String label, String value) {
+    return TableRow(children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Text(label, style: TextStyle(fontWeight: FontWeight.w500)),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Text(value),
+      ),
+    ]);
+  }
 
+
+// 3. Bill Preview Dialog
   void _showBillPreview(Bill bill) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Hóa đơn đã xuất'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Mã hóa đơn: ${bill.id}'),
-            Text('Yêu cầu: ${bill.requestId}'),
-            Text('Ngày: ${DateFormat('yyyy-MM-dd – kk:mm').format(bill.date)}'),
-            const Divider(),
-            Text('Quá hạn: ${bill.overdueDays} ngày → ${bill.overdueFee}₫'),
-            Text('Hư hỏng: ${bill.damageFee}₫'),
-            const Divider(),
-            Text('Tổng: ${bill.totalFee}₫',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text('Khách trả: ${bill.amountReceived}₫'),
-            Text('Tiền thối: ${bill.changeGiven}₫'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Đóng'),
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: EdgeInsets.all(24),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Text('Hóa đơn đã xuất', style: Theme.of(context).textTheme.titleLarge),
+              ),
+              SizedBox(height: 16),
+              Table(
+                columnWidths: {0: FlexColumnWidth(2), 1: FlexColumnWidth(1)},
+                children: [
+                  _buildRow('Mã hóa đơn', bill.id),
+                  _buildRow('Yêu cầu', bill.requestId),
+                  _buildRow('Ngày', DateFormat('yyyy-MM-dd – HH:mm').format(bill.date)),
+                  _buildRow('Quá hạn', '${bill.overdueDays} ngày → ${bill.overdueFee}₫'),
+                  _buildRow('Hư hỏng', '${bill.damageFee?.toStringAsFixed(0) ?? '0'}₫'),
+                  TableRow(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text('Tổng', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text('${bill.totalFee?.toStringAsFixed(0) ?? '0'}₫', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  _buildRow('Khách trả', '${bill.amountReceived?.toStringAsFixed(0) ?? '0'}₫'),
+                  _buildRow('Tiền thối', '${bill.changeGiven?.toStringAsFixed(0) ?? '0'}₫'),
+                ],
+              ),
+              SizedBox(height: 16),
+              Align(
+                alignment: Alignment.bottomRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Đóng'),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
+
 
   List<RoomBookingRequest> get _pending =>
       _allRequests.where((r) => r.status == 'pending').toList();
@@ -296,34 +372,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   }
 
   List<RoomBookingRequest> get _filteredPast {
-    switch (_historyFilter) {
-      case 'Ngày':
-        return _past
-            .where((r) =>
-        r.startTime.year == _historyDate.year &&
-            r.startTime.month == _historyDate.month &&
-            r.startTime.day == _historyDate.day)
-            .toList();
-      case 'Tháng':
-        return _past
-            .where((r) =>
-        r.startTime.year == _historyYear &&
-            r.startTime.month == _historyMonth)
-            .toList();
-      case 'Quý':
-        return _past
-            .where((r) {
-          final q = ((r.startTime.month - 1) ~/ 3) + 1;
-          return r.startTime.year == _historyYear && q == _historyQuarter;
-        })
-            .toList();
-      case 'Năm':
-        return _past
-            .where((r) => r.startTime.year == _historyYear)
-            .toList();
-      default:
-        return _past;
-    }
+    return _applySortAndFilter(_past);
   }
 
   bool _hasConflict(RoomBookingRequest req) {
@@ -336,8 +385,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
   }
 
   Future<void> _updateStatus(RoomBookingRequest r, String newStatus) async {
-    final url = Uri.parse(
-        'http://localhost:3002/api/roomBookingRequest/${r.id}');
+    final url = Uri.parse('http://localhost:3002/api/roomBookingRequest/${r.id}');
     final res = await http.put(
       url,
       headers: {'Content-Type': 'application/json'},
@@ -359,7 +407,6 @@ class _BookingReviewPageState extends State<BookingReviewPage>
 
       setState(() => r.status = newStatus);
 
-      // Ghi log hành động
       await _logAction(
         adminId: _adminId,
         actionType: 'UPDATE',
@@ -377,17 +424,43 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     }
   }
 
-  @override
-  void dispose() {
-    _searchCtl.dispose();
-    super.dispose();
+  List<RoomBookingRequest> _applySortAndFilter(List<RoomBookingRequest> list) {
+    // Lọc theo search
+    var filtered = list.where((r) {
+      final matchSearch = _searchCtl.text.isEmpty ||
+          r.roomId.toLowerCase().contains(_searchCtl.text.toLowerCase()) ||
+          r.userId.toLowerCase().contains(_searchCtl.text.toLowerCase());
+      return matchSearch;
+    }).toList();
+
+    // Sắp xếp
+    filtered.sort((a, b) {
+      int compare;
+      switch (_sortBy) {
+        case 'roomId':
+          compare = a.roomId.compareTo(b.roomId);
+          break;
+        case 'userId':
+          compare = a.userId.compareTo(b.userId);
+          break;
+        case 'endTime':
+          compare = a.endTime.compareTo(b.endTime);
+          break;
+        case 'startTime':
+        default:
+          compare = a.startTime.compareTo(b.startTime);
+          break;
+      }
+      return _sortAscending ? compare : -compare;
+    });
+
+    return filtered;
   }
+
   @override
   Widget build(BuildContext context) {
-    final filter = _searchCtl.text.toLowerCase();
-
     return DefaultTabController(
-      length: _tabs.length, // =7
+      length: _tabs.length,
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
@@ -403,21 +476,56 @@ class _BookingReviewPageState extends State<BookingReviewPage>
         ),
         body: Column(
           children: [
-            // Search bar
+            // Search bar & Sort controls
             Padding(
               padding: const EdgeInsets.all(12),
-              child: TextField(
-                controller: _searchCtl,
-                decoration: InputDecoration(
-                  hintText: 'Tìm phòng hoặc user...',
-                  prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  isDense: true,
-                ),
-                onChanged: (_) => setState(() {}),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _searchCtl,
+                    decoration: InputDecoration(
+                      hintText: 'Tìm phòng hoặc user...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      isDense: true,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      // Dropdown cho sortBy
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _sortBy,
+                          decoration: InputDecoration(
+                            labelText: 'Sắp xếp theo',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            isDense: true,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'startTime', child: Text('Thời gian bắt đầu')),
+                            DropdownMenuItem(value: 'endTime', child: Text('Thời gian kết thúc')),
+                            DropdownMenuItem(value: 'roomId', child: Text('ID Phòng')),
+                            DropdownMenuItem(value: 'userId', child: Text('ID Người dùng')),
+                          ],
+                          onChanged: (v) => setState(() => _sortBy = v!),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Nút toggle hướng sắp xếp
+                      IconButton(
+                        icon: Icon(
+                          _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                          color: AppColors.primary,
+                        ),
+                        onPressed: () => setState(() => _sortAscending = !_sortAscending),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            // Nội dung theo tab
             Expanded(
               child: TabBarView(
                 children: _tabs.map((t) {
@@ -432,11 +540,8 @@ class _BookingReviewPageState extends State<BookingReviewPage>
                         tt['status']!: _allRequests.where((r) => r.status == tt['status']).length
                     };
 
-                    // 2. Lấy toàn bộ history rồi lọc
-                    final rawHistory = List<RoomBookingRequest>.from(_allRequests);
-                    final filteredHistory = (_statsFilter == 'Tất cả')
-                        ? rawHistory
-                        : rawHistory.where((r) => r.status == _labelToStatus[_statsFilter]).toList();
+                    // 2. Lấy toàn bộ lịch sử và áp dụng tìm kiếm + sắp xếp
+                    final sortedHistory = _applySortAndFilter(_allRequests);
 
                     return Padding(
                       padding: const EdgeInsets.all(16),
@@ -452,30 +557,14 @@ class _BookingReviewPageState extends State<BookingReviewPage>
                             return Text('$label: ${e.value}', style: const TextStyle(fontSize: 16));
                           }),
                           const Divider(height: 32),
-
-                          // Dropdown lọc lịch sử
-                          DropdownButtonFormField<String>(
-                            value: _statsFilter,
-                            decoration: InputDecoration(
-                              labelText: 'Lọc lịch sử',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              isDense: true,
-                            ),
-                            items: _statsFilterOptions
-                                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                                .toList(),
-                            onChanged: (v) => setState(() => _statsFilter = v!),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Danh sách lịch sử sau lọc
+                          // Danh sách lịch sử
                           Expanded(
-                            child: filteredHistory.isEmpty
+                            child: sortedHistory.isEmpty
                                 ? const Center(child: Text('Không có lịch sử phù hợp.'))
                                 : ListView.builder(
-                              itemCount: filteredHistory.length,
+                              itemCount: sortedHistory.length,
                               itemBuilder: (ctx, i) {
-                                final req = filteredHistory[i];
+                                final req = sortedHistory[i];
                                 return GestureDetector(
                                   onTap: () => _showHistoryDialog(req.id),
                                   child: _buildCardForStatus(req),
@@ -483,26 +572,20 @@ class _BookingReviewPageState extends State<BookingReviewPage>
                               },
                             ),
                           ),
-
                         ],
                       ),
                     );
                   }
 
                   // Các tab booking bình thường
-                  final list = _allRequests.where((r) {
-                    final matchStatus = r.status == key;
-                    final matchSearch = filter.isEmpty
-                        || r.roomId.toLowerCase().contains(filter)
-                        || r.userId.toLowerCase().contains(filter);
-                    return matchStatus && matchSearch;
-                  }).toList();
+                  final list = _allRequests.where((r) => r.status == key).toList();
+                  final sortedList = _applySortAndFilter(list);
 
-                  if (list.isEmpty) {
+                  if (sortedList.isEmpty) {
                     return Center(child: Text('Không có: ${t['label']}'));
                   }
                   return ListView(
-                    children: list.map(_buildCardForStatus).toList(),
+                    children: sortedList.map(_buildCardForStatus).toList(),
                   );
                 }).toList(),
               ),
@@ -513,16 +596,22 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     );
   }
 
-  /// Trả về màu badge theo status, thêm 'finished'
+  /// Trả về màu badge theo status
   Color _badgeColor(String status) {
     switch (status) {
-      case 'approved':   return Colors.orange;
-      case 'pending':    return AppColors.primary;
-      case 'using':      return Colors.green;
-      case 'finished':   return Colors.blueGrey;
-      case 'cancelled':  return Colors.red;
-      case 'rejected':   return Colors.red;
-      default:           return Colors.grey;
+      case 'approved':
+        return Colors.orange;
+      case 'pending':
+        return AppColors.primary;
+      case 'using':
+        return Colors.green;
+      case 'finished':
+        return Colors.blueGrey;
+      case 'cancelled':
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -533,17 +622,29 @@ class _BookingReviewPageState extends State<BookingReviewPage>
 
     // Xác định xem quá hạn chưa (chỉ áp dụng khi đang sử dụng)
     final bool isOverdue = r.status == 'using' && now.isAfter(r.endTime);
+    // Kiểm tra xung đột
+    final bool hasConflict = _hasConflict(r);
 
     // Chọn màu nền & viền
-    final Color cardColor   = isOverdue ? Colors.red.shade50 : AppColors.white;
-    final Color borderColor = isOverdue ? Colors.red : _badgeColor(r.status);
+    final Color cardColor = isOverdue
+        ? Colors.red.shade50
+        : hasConflict
+        ? Colors.red.shade50 // Màu đỏ nhạt cho xung đột
+        : AppColors.white;
+    final Color borderColor = isOverdue
+        ? Colors.red
+        : hasConflict
+        ? Colors.red.shade700 // Viền đỏ đậm cho xung đột
+        : _badgeColor(r.status);
 
     switch (r.status) {
       case 'pending':
         actions.addAll([
           ElevatedButton(
-            onPressed: () => _updateStatus(r, 'approved'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: hasConflict
+                ? null // Vô hiệu hóa nút nếu có xung đột
+                : () => _updateStatus(r, 'approved'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.brown,foregroundColor: AppColors.cardBackground),
             child: const Text('Approve'),
           ),
           const SizedBox(width: 8),
@@ -570,10 +671,10 @@ class _BookingReviewPageState extends State<BookingReviewPage>
           ),
           const SizedBox(width: 8),
           ElevatedButton(
-            onPressed: () => _showInvoiceDialog(r),    // <-- gọi dialog
+            onPressed: () => _showInvoiceDialog(r),
             style: ElevatedButton.styleFrom(
-             backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
             ),
             child: const Text('Thanh toán'),
           ),
@@ -586,7 +687,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
             onPressed: () => _updateStatus(r, 'finished'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.white,
+              foregroundColor: Colors.white,
             ),
             child: const Text('Hoàn thành'),
           ),
@@ -598,7 +699,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
     }
 
     return Card(
-      color: cardColor, // dùng màu nền động
+      color: cardColor,
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
       shape: RoundedRectangleBorder(
         side: BorderSide(color: borderColor, width: 1),
@@ -609,7 +710,7 @@ class _BookingReviewPageState extends State<BookingReviewPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: Room ID + badge
+            // Header: Room ID + badge + conflict warning
             Row(
               children: [
                 Expanded(
@@ -638,13 +739,18 @@ class _BookingReviewPageState extends State<BookingReviewPage>
                 ),
               ],
             ),
-
+            if (hasConflict) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Cảnh báo: Xung đột thời gian với booking khác!',
+                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+              ),
+            ],
             const SizedBox(height: 8),
             Text('${dateFmt.format(r.startTime)} → ${DateFormat('HH:mm').format(r.endTime)}'),
             const SizedBox(height: 4),
             Text('User: ${r.userId}'),
             Text('Mục đích: ${r.purpose}'),
-
             if (actions.isNotEmpty) ...[
               const SizedBox(height: 12),
               Row(children: actions),

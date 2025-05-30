@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../theme/AppColor.dart';
+
 class RoomManagementPage extends StatefulWidget {
   const RoomManagementPage({Key? key}) : super(key: key);
 
@@ -18,6 +20,15 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
   late DateTime _currentTime;
   Timer? _timer;
   String _adminId = '';
+  RangeValues _yearRange = const RangeValues(2000, 2025);
+  String _statusFilter = 'All';
+  String _sortField = 'Name';
+  bool _sortAsc = true;
+  RangeValues _capacityRange = const RangeValues(0, 100);
+  int _currentPage = 1;
+  final int _rowsPerPage = 10;
+  final List<String> _statusOptions = ['All', 'Available', 'Occupied'];
+  final List<String> _sortOptions = ['Name', 'Capacity'];
 
   final TextEditingController _searchController = TextEditingController();
   List<Room> _filteredRooms = [];
@@ -39,9 +50,51 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
       _adminId = prefs.getString('userId') ?? 'unknown_admin';
     });
 
+    SharedPreferences.getInstance().then((prefs) {
+      setState(() {
+        _statusFilter = prefs.getString('room_status_filter') ?? 'All';
+        _sortField = prefs.getString('room_sort_field') ?? 'Name';
+        _sortAsc = prefs.getBool('room_sort_asc') ?? true;
+        _capacityRange = RangeValues(
+          (prefs.getInt('room_capacity_min') ?? 0).toDouble(),
+          (prefs.getInt('room_capacity_max') ?? 100).toDouble(),
+        );
+      });
+    });
+
     _loadRooms().then((_) {
       fetchAndSetRoomBookingRequests();
     });
+  }
+  Future<void> _savePreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString('room_status_filter', _statusFilter);
+    prefs.setString('room_sort_field', _sortField);
+    prefs.setBool('room_sort_asc', _sortAsc);
+    prefs.setInt('room_capacity_min', _capacityRange.start.toInt());
+    prefs.setInt('room_capacity_max', _capacityRange.end.toInt());
+  }
+  List<Room> get _processedRooms {
+    List<Room> filtered = _rooms.where((room) {
+      final matchSearch = room.name.toLowerCase().contains(_searchController.text.toLowerCase()) || room.id.contains(_searchController.text);
+      final matchStatus = _statusFilter == 'All' || _getRoomStatus(room) == _statusFilter.toLowerCase();
+      final matchCapacity = room.capacity >= _capacityRange.start && room.capacity <= _capacityRange.end;
+      return matchSearch && matchStatus && matchCapacity;
+    }).toList();
+
+    filtered.sort((a, b) {
+      final cmp = _sortField == 'Capacity'
+          ? a.capacity.compareTo(b.capacity)
+          : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      return _sortAsc ? cmp : -cmp;
+    });
+
+    return filtered;
+  }
+
+  List<Room> get _paginatedRooms {
+    final start = (_currentPage - 1) * _rowsPerPage;
+    return _processedRooms.skip(start).take(_rowsPerPage).toList();
   }
 
   @override
@@ -125,6 +178,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
+                foregroundColor: AppColors.white,
                 backgroundColor: Colors.brown[700],
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
@@ -163,7 +217,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
           actions: [
             TextButton(
               style: TextButton.styleFrom(
-                foregroundColor: Colors.white, // màu chữ trắng
+                foregroundColor: Colors.brown, // màu chữ trắng
               ),
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cancel'),
@@ -287,44 +341,163 @@ class _RoomManagementPageState extends State<RoomManagementPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Room Management',
-                    style:
-                    TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+
+                // --- Tìm kiếm & bộ lọc ---
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    const SizedBox(width: 16),
+                    // 🔍 Tìm kiếm
                     SizedBox(
                       width: 220,
                       child: TextField(
                         controller: _searchController,
-                        onChanged: _filterRooms,
+                        onChanged: (_) => setState(() {
+                          _filteredRooms = _processedRooms;
+                        }),
                         decoration: InputDecoration(
                           hintText: 'Search by ID or Name',
                           prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+
+                    // ⏳ Trạng thái phòng
+                    _buildDropdown('Status', _statusFilter, _statusOptions, (val) {
+                      setState(() {
+                        _statusFilter = val!;
+                        _currentPage = 1;
+                        _savePreferences();
+                        _filteredRooms = _processedRooms;
+                      });
+                    }),
+                    const SizedBox(width: 12),
+
+                    // 🧭 Sắp xếp
+                    _buildDropdown('Sort by', _sortField, _sortOptions, (val) {
+                      setState(() {
+                        _sortField = val!;
+                        _savePreferences();
+                        _filteredRooms = _processedRooms;
+                      });
+                    }),
+                    IconButton(
+                      icon: Icon(_sortAsc ? Icons.arrow_upward : Icons.arrow_downward),
+                      onPressed: () => setState(() {
+                        _sortAsc = !_sortAsc;
+                        _savePreferences();
+                        _filteredRooms = _processedRooms;
+                      }),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // 🎛️ Bộ lọc theo sức chứa
+                Row(
+                  children: [
+                    const Text('Sức chứa:', style: TextStyle(fontWeight: FontWeight.w500)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: RangeSlider(
+                        values: _capacityRange,
+                        min: 0,
+                        max: 100,
+                        divisions: 20,
+                        labels: RangeLabels(
+                          _capacityRange.start.toInt().toString(),
+                          _capacityRange.end.toInt().toString(),
+                        ),
+                        onChanged: (range) => setState(() {
+                          _capacityRange = range;
+                          _savePreferences();
+                          _filteredRooms = _processedRooms;
+                        }),
                       ),
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 16),
+
+                // 📋 Bảng dữ liệu (nền trắng)
                 Expanded(
                   child: Card(
+                    color: Colors.white, // ✅ Nền trắng
                     elevation: 2,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: buildResponsiveDataTable(),
                     ),
                   ),
                 ),
+
+                // 🔢 Phân trang
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: _currentPage > 1
+                            ? () => setState(() {
+                          _currentPage--;
+                          _filteredRooms = _processedRooms;
+                        })
+                            : null,
+                      ),
+                      Text(
+                        'Trang $_currentPage / ${(_processedRooms.length / _rowsPerPage).ceil().clamp(1, 999)}',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: _currentPage * _rowsPerPage < _processedRooms.length
+                            ? () => setState(() {
+                          _currentPage++;
+                          _filteredRooms = _processedRooms;
+                        })
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdown(String label, String value, List<String> options, ValueChanged<String?> onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontWeight: FontWeight.w500, color: Colors.brown[700])),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.brown[50],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.brown),
+          ),
+          child: DropdownButton<String>(
+            value: value,
+            onChanged: onChanged,
+            underline: const SizedBox(),
+            isDense: true,
+            icon: const Icon(Icons.arrow_drop_down),
+            items: options.map((e) => DropdownMenuItem<String>(
+              value: e,
+              child: Text(e),
+            )).toList(),
           ),
         ),
       ],

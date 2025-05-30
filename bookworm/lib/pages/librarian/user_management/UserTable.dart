@@ -1,6 +1,7 @@
-// /pages/user_management/widgets/user_table.dart
 import 'package:flutter/material.dart';
 import 'package:bookworm/model/User.dart';
+
+import '../../../theme/AppColor.dart';
 
 class UserTable extends StatelessWidget {
   final List<User> users;
@@ -18,71 +19,87 @@ class UserTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    List<User> displayUsers = users.where((user) => user.role != 'admin').toList();
+    // Lọc bỏ admin nếu cần
+    final displayUsers = users.where((u) => u.role != 'admin').toList();
+    final theme = Theme.of(context);
+    final textStyle = theme.textTheme.bodyMedium;
+    final cs = theme.colorScheme;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
+    return Card(
+      color: AppColors.white,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: DataTable(
-              columns: const [
-                DataColumn(label: Text('ID')),
-                DataColumn(label: Text('Name')),
-                DataColumn(label: Text('Email')),
-                DataColumn(label: Text('Phone')),
-                DataColumn(label: Text('Role')),
-                DataColumn(label: Text('Status')),
-                DataColumn(label: Text('Action')),
-              ],
-              rows: displayUsers.map((user) {
-                return DataRow(
-                  cells: [
-                    DataCell(Text(user.id)),
-                    DataCell(Text(user.name, overflow: TextOverflow.ellipsis)),
-                    DataCell(Text(user.email)),
-                    DataCell(Text(user.phone)),
-                    DataCell(Text(user.role)),
-                    DataCell(Text(user.status)),
-                    DataCell(
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.visibility, color: Colors.blue),
-                            onPressed: () {
-                              Future.microtask(() {
-                                onView(user);
-                              });
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.brown),
-                            onPressed: () {
-                              Future.microtask(() {
-                                onEdit(user);
-                              });
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () {
-                              Future.microtask(() {
-                                onDelete(user);
-                              });
-                            },
-                          ),
-                        ],
+          child: DataTable(
+            headingRowColor: MaterialStateColor.resolveWith((_) => cs.primary.withOpacity(0.1)),
+            dataRowHeight: 56,
+            columnSpacing: 24,
+            horizontalMargin: 16,
+            columns: const [
+              DataColumn(label: Text('ID')),
+              DataColumn(label: Text('Name')),
+              DataColumn(label: Text('Email')),
+              DataColumn(label: Text('Phone')),
+              DataColumn(label: Text('Role')),
+              DataColumn(label: Text('Status')),
+              DataColumn(label: Text('Actions')),
+            ],
+            rows: displayUsers.map((user) {
+              return DataRow(cells: [
+                DataCell(
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 200),
+                    child: Text(user.id, style: textStyle, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+                DataCell(Text(user.name, style: textStyle)),
+                DataCell(
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 200),
+                    child: Text(user.email, style: textStyle, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+                DataCell(Text(user.phone, style: textStyle)),
+                DataCell(Text(user.role, style: textStyle)),
+                DataCell(Text(user.status, style: textStyle)),
+                DataCell(Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tooltip(
+                      message: 'View',
+                      child: IconButton(
+                        icon: Icon(Icons.visibility, color: cs.primary),
+                        onPressed: () => onView(user),
+                        splashRadius: 20,
+                      ),
+                    ),
+                    Tooltip(
+                      message: 'Edit',
+                      child: IconButton(
+                        icon: Icon(Icons.edit, color: AppColors.primary),
+                        onPressed: () => onEdit(user),
+                        splashRadius: 20,
+                      ),
+                    ),
+                    Tooltip(
+                      message: 'Delete',
+                      child: IconButton(
+                        icon: Icon(Icons.delete, color: cs.error),
+                        onPressed: () => onDelete(user),
+                        splashRadius: 20,
                       ),
                     ),
                   ],
-                );
-              }).toList(),
-            ),
+                )),
+              ]);
+            }).toList(),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

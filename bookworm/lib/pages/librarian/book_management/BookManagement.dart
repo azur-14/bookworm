@@ -23,6 +23,11 @@ class _BookManagementPageState extends State<BookManagementPage> {
   final List<Category> _categories = [];
   String _searchQuery = '';
   String _adminId = 'unknown_admin';
+// filter & sort
+  String _selectedCategory = 'All';
+  String _sortField = 'Title';
+  bool _sortAsc = true;
+  final List<String> _sortOptions = ['Title', 'Year'];
 
   @override
   void initState() {
@@ -135,6 +140,33 @@ class _BookManagementPageState extends State<BookManagementPage> {
     }
   }
 
+  Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String?> onChanged) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade400),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('$label: ',
+              style: const TextStyle(fontWeight: FontWeight.w500)),
+          DropdownButton<String>(
+            value: value,
+            underline: const SizedBox(),
+            items: items
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
+            onChanged: onChanged,
+            style: const TextStyle(color: Colors.black87),
+            dropdownColor: Colors.white,
+          ),
+        ],
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -143,31 +175,21 @@ class _BookManagementPageState extends State<BookManagementPage> {
     final formattedDate = DateFormat('MMM dd, yyyy').format(now);
 
     return Scaffold(
+      backgroundColor: AppColors.background, // be sáng
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Book Management', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    SizedBox(
-                      width: 240,
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search title or author...',
-                          prefixIcon: const Icon(Icons.search),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    const Text('📚 Book Management',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     ElevatedButton.icon(
                       onPressed: _showAddBookDialog,
                       icon: const Icon(Icons.add),
@@ -175,8 +197,49 @@ class _BookManagementPageState extends State<BookManagementPage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: AppColors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    // Search
+                    SizedBox(
+                      width: 250,
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search by title or author...',
+                          prefixIcon: const Icon(Icons.search),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                          border:
+                          OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onChanged: (value) =>
+                            setState(() => _searchQuery = value.toLowerCase()),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    _buildDropdown(
+                      'Category',
+                      _selectedCategory,
+                      ['All', ..._categories.map((c) => c.name)],
+                          (v) => setState(() => _selectedCategory = v!),
+                    ),
+                    const SizedBox(width: 16),
+                    _buildDropdown(
+                      'Sort by',
+                      _sortField,
+                      _sortOptions,
+                          (v) => setState(() => _sortField = v!),
+                    ),
+                    IconButton(
+                      icon:
+                      Icon(_sortAsc ? Icons.arrow_upward : Icons.arrow_downward),
+                      onPressed: () => setState(() => _sortAsc = !_sortAsc),
+                      tooltip: _sortAsc ? 'Sắp xếp tăng' : 'Sắp xếp giảm',
                     ),
                   ],
                 ),
@@ -188,13 +251,15 @@ class _BookManagementPageState extends State<BookManagementPage> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Card(
+                color: Colors.white, // ⭐ Thêm dòng này
                 elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(8.0),
                   child: _bookTable(),
                 ),
-              ),
+              )
+
             ),
           ),
           Padding(
@@ -211,9 +276,19 @@ class _BookManagementPageState extends State<BookManagementPage> {
 
   Widget _bookTable() {
     final filteredBooks = _books.where((b) {
-      final q = _searchQuery.trim();
-      return q.isEmpty || b.title.toLowerCase().contains(q) || b.author.toLowerCase().contains(q);
+      final q = _searchQuery.trim().toLowerCase();
+      final matchSearch = b.title.toLowerCase().contains(q) || b.author.toLowerCase().contains(q);
+      final matchCategory = _selectedCategory == 'All' || _catName(b.categoryId) == _selectedCategory;
+      return matchSearch && matchCategory;
     }).toList();
+
+// Sort logic
+    filteredBooks.sort((a, b) {
+      final cmp = _sortField == 'Year'
+          ? a.publishYear.compareTo(b.publishYear)
+          : a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      return _sortAsc ? cmp : -cmp;
+    });
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,

@@ -1,8 +1,6 @@
 //npm install express mongoose body-parser cors dotenv uuid axios bcrypt jsonwebtoken nodemailer moment swagger-jsdoc swagger-ui-express
 // pass_app_email = abfk znlx ggfn ycpk
 
-
-
 // Sử dụng middleware verifyToken cho các route cần bảo vệ
 // Ví dụ:
 // js

@@ -145,13 +145,14 @@ class _SystemConfigPageState extends State<SystemConfigPage> {
                     onPressed: _save,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.brown.shade700,
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                     child: const Text(
-                      'LƯU CẤU HÌNH',
+                      'Lưu cấu hình',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),

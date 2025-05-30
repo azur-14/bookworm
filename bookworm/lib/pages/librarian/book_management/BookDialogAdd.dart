@@ -10,23 +10,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 class BookDialogAdd extends StatefulWidget {
   final List<Category> categories;
 
-  const BookDialogAdd({super.key, required this.categories});
+  const BookDialogAdd({Key? key, required this.categories}) : super(key: key);
 
   @override
-  State<BookDialogAdd> createState() => _BookDialogAddState();
+  _BookDialogAddState createState() => _BookDialogAddState();
 }
 
 class _BookDialogAddState extends State<BookDialogAdd> {
-  late TextEditingController titleCtl;
-  late TextEditingController authorCtl;
-  late TextEditingController pubCtl;
-  late TextEditingController yearCtl;
-  late TextEditingController descCtl;
-  late TextEditingController priceCtl;
-  late TextEditingController qtyCtl;
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _titleCtl;
+  late TextEditingController _authorCtl;
+  late TextEditingController _pubCtl;
+  late TextEditingController _yearCtl;
+  late TextEditingController _descCtl;
+  late TextEditingController _priceCtl;
+  late TextEditingController _qtyCtl;
 
-  Category? selCat;
-  Uint8List? imageBytes;
+  Category? _selCat;
+  Uint8List? _imageBytes;
   String _adminId = 'unknown_admin';
 
   @override
@@ -37,115 +38,165 @@ class _BookDialogAddState extends State<BookDialogAdd> {
         _adminId = prefs.getString('userId') ?? 'unknown_admin';
       });
     });
-    titleCtl = TextEditingController();
-    authorCtl = TextEditingController();
-    pubCtl = TextEditingController();
-    yearCtl = TextEditingController();
-    descCtl = TextEditingController();
-    priceCtl = TextEditingController();
-    qtyCtl = TextEditingController(text: '1');
-    if (widget.categories.isNotEmpty) {
-      selCat = widget.categories.first;
-    }
+    _titleCtl = TextEditingController();
+    _authorCtl = TextEditingController();
+    _pubCtl = TextEditingController();
+    _yearCtl = TextEditingController();
+    _descCtl = TextEditingController();
+    _priceCtl = TextEditingController();
+    _qtyCtl = TextEditingController(text: '1');
+    _selCat = widget.categories.isNotEmpty ? widget.categories.first : null;
   }
 
   @override
   void dispose() {
-    titleCtl.dispose();
-    authorCtl.dispose();
-    pubCtl.dispose();
-    yearCtl.dispose();
-    descCtl.dispose();
-    priceCtl.dispose();
-    qtyCtl.dispose();
+    _titleCtl.dispose();
+    _authorCtl.dispose();
+    _pubCtl.dispose();
+    _yearCtl.dispose();
+    _descCtl.dispose();
+    _priceCtl.dispose();
+    _qtyCtl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Add New Book'),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      contentPadding: const EdgeInsets.all(24),
+      actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      title: const Text(
+        'Add New Book',
+        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+      ),
       content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _input(titleCtl, 'Title'),
-            _input(authorCtl, 'Author'),
-            _input(pubCtl, 'Publisher'),
-            _input(yearCtl, 'Publish Year', number: true),
-            _input(descCtl, 'Description'),
-            _pickImageButton(),
-            _input(priceCtl, 'Price', number: true),
-            _numberInput('Total Quantity', qtyCtl, onChanged: (v) {
-              // ensure at least 1
-              final qty = v < 1 ? 1 : v;
-              qtyCtl.text = qty.toString();
-            }),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<Category>(
-              value: selCat,
-              decoration: const InputDecoration(
-                labelText: 'Category',
-                border: OutlineInputBorder(),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildTextField(_titleCtl, 'Title', validator: (v) => v!.isEmpty ? 'Required' : null),
+              _buildTextField(_authorCtl, 'Author', validator: (v) => v!.isEmpty ? 'Required' : null),
+              _buildTextField(_pubCtl, 'Publisher', validator: (v) => v!.isEmpty ? 'Required' : null),
+              _buildTextField(_yearCtl, 'Publish Year', keyboard: TextInputType.number, validator: (v) {
+                final yr = int.tryParse(v!);
+                return (yr == null || yr < 0) ? 'Invalid year' : null;
+              }),
+              _buildTextField(_descCtl, 'Description', maxLines: 3),
+              const SizedBox(height: 12),
+              _buildImagePicker(),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(_priceCtl, 'Price', keyboard: TextInputType.number, validator: (v) {
+                      final p = double.tryParse(v!);
+                      return (p == null || p < 0) ? 'Invalid price' : null;
+                    }),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildTextField(_qtyCtl, 'Quantity', keyboard: TextInputType.number, validator: (v) {
+                      final q = int.tryParse(v!);
+                      return (q == null || q < 1) ? 'Must be >=1' : null;
+                    }),
+                  ),
+                ],
               ),
-              items: widget.categories
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c.name)))
-                  .toList(),
-              onChanged: (c) => setState(() => selCat = c),
-            ),
-          ],
+              const SizedBox(height: 16),
+              DropdownButtonFormField<Category>(
+                value: _selCat,
+                decoration: _inputDecoration('Category'),
+                items: widget.categories
+                    .map((c) => DropdownMenuItem(value: c, child: Text(c.name)))
+                    .toList(),
+                onChanged: (c) => setState(() => _selCat = c),
+                validator: (v) => v == null ? 'Choose a category' : null,
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
-        ElevatedButton(onPressed: _handleAddBook, child: const Text('ADD')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('CANCEL'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          onPressed: _handleAddBook,
+          child: const Text('ADD'),
+        ),
       ],
     );
   }
 
-  Widget _input(TextEditingController ctl, String label, {bool number = false}) {
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    );
+  }
+
+  Widget _buildTextField(
+      TextEditingController ctl,
+      String label, {
+        TextInputType keyboard = TextInputType.text,
+        String? Function(String?)? validator,
+        int maxLines = 1,
+      }) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: TextField(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
         controller: ctl,
-        keyboardType: number ? TextInputType.number : TextInputType.text,
-        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+        keyboardType: keyboard,
+        maxLines: maxLines,
+        decoration: _inputDecoration(label),
+        validator: validator,
       ),
     );
   }
 
-  Widget _numberInput(String label, TextEditingController ctl,
-      {required void Function(int) onChanged}) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: TextField(
-        controller: ctl,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-        onChanged: (val) {
-          final v = int.tryParse(val) ?? 0;
-          onChanged(v);
-        },
-      ),
-    );
-  }
-
-  Widget _pickImageButton() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ElevatedButton.icon(
-            icon: const Icon(Icons.image),
-            label: const Text('Choose Image'),
-            onPressed: _pickImage,
+  Widget _buildImagePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextButton.icon(
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            backgroundColor: Colors.grey[200],
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
+          icon: const Icon(Icons.image),
+          label: const Text('Choose Image'),
+          onPressed: _pickImage,
+        ),
+        if (_imageBytes != null) ...[
           const SizedBox(height: 8),
-          if (imageBytes != null)
-            Image.memory(imageBytes!, width: 100, height: 100, fit: BoxFit.cover),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.memory(
+              _imageBytes!,
+              width: 100,
+              height: 100,
+              fit: BoxFit.cover,
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -155,51 +206,26 @@ class _BookDialogAddState extends State<BookDialogAdd> {
     if (picked != null) {
       final bytes = await picked.readAsBytes();
       setState(() {
-        imageBytes = bytes;
+        _imageBytes = bytes;
       });
     }
   }
 
   Future<void> _handleAddBook() async {
-    // validate required fields
-    if (titleCtl.text.trim().isEmpty ||
-        authorCtl.text.trim().isEmpty ||
-        pubCtl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập đủ Title, Author và Publisher')),
-      );
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    final year = int.tryParse(yearCtl.text);
-    if (year == null || year < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Năm xuất bản phải là số hợp lệ')),
-      );
-      return;
-    }
-
-    final price = double.tryParse(priceCtl.text);
-    if (price == null || price < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Giá sách phải là số hợp lệ')),
-      );
-      return;
-    }
-
-    final totalQty = int.tryParse(qtyCtl.text) ?? 1;
     final newBook = Book(
       id: '',
-      title: titleCtl.text.trim(),
-      author: authorCtl.text.trim(),
-      publisher: pubCtl.text.trim(),
-      publishYear: year,
-      price: price,
-      categoryId: selCat?.id ?? '',
-      totalQuantity: totalQty,
-      availableQuantity: totalQty,
-      image: imageBytes != null ? base64Encode(imageBytes!) : '',
-      description: descCtl.text.trim(),
+      title: _titleCtl.text.trim(),
+      author: _authorCtl.text.trim(),
+      publisher: _pubCtl.text.trim(),
+      publishYear: int.parse(_yearCtl.text),
+      price: double.parse(_priceCtl.text),
+      categoryId: _selCat!.id,
+      totalQuantity: int.parse(_qtyCtl.text),
+      availableQuantity: int.parse(_qtyCtl.text),
+      image: _imageBytes != null ? base64Encode(_imageBytes!) : '',
+      description: _descCtl.text.trim(),
       timeCreate: DateTime.now(),
     );
 
@@ -213,7 +239,7 @@ class _BookDialogAddState extends State<BookDialogAdd> {
       Navigator.pop(context, true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi: $e')),
+        SnackBar(content: Text('Lỗi: \$e')),
       );
     }
   }
@@ -225,7 +251,7 @@ class _BookDialogAddState extends State<BookDialogAdd> {
       body: json.encode(b.toJson()),
     );
     if (resp.statusCode != 201) {
-      throw Exception('Add book failed: ${resp.body}');
+      throw Exception('Add book failed: \${resp.body}');
     }
   }
 

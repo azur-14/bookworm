@@ -1,6 +1,6 @@
-// /pages/user_management/widgets/user_delete_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:bookworm/model/User.dart';
+import 'package:bookworm/theme/AppColor.dart';
 
 class UserDeleteDialog extends StatelessWidget {
   final User user;
@@ -15,16 +15,41 @@ class UserDeleteDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Delete Confirmation'),
-      content: Text('Are you sure you want to delete "${user.email}"?'),
+      backgroundColor: AppColors.cardBackground, // nền be nhạt
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      title: Text(
+        'Delete Confirmation',
+        style: TextStyle(
+          color: AppColors.primary,    // nâu đậm
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      content: Text(
+        'Are you sure you want to delete "${user.email}"?',
+        style: const TextStyle(color: Colors.black87),
+      ),
+      actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       actions: [
-        TextButton(
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: AppColors.primary),
+            foregroundColor: AppColors.primary, // text nâu
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
           onPressed: () => Navigator.pop(context),
           child: const Text('CANCEL'),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.redAccent,
+            backgroundColor: AppColors.primary, // nâu đậm
+            foregroundColor: AppColors.white,    // text trắng
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
           onPressed: () {
             onConfirmDelete();

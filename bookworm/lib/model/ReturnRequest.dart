@@ -1,3 +1,5 @@
+// lib/model/ReturnRequest.dart
+
 class ReturnRequest {
   final String id;
   final String borrowRequestId;
@@ -10,10 +12,20 @@ class ReturnRequest {
     required this.id,
     required this.borrowRequestId,
     this.status = 'processing',
-    DateTime? returnDate,
+    this.returnDate,
     this.returnImageBase64,
     this.condition,
   });
+
+  /// Constructor trả về object “rỗng” khi không tìm thấy
+  factory ReturnRequest.empty() => ReturnRequest(
+    id: '',
+    borrowRequestId: '',
+    status: '',
+    returnDate: null,
+    returnImageBase64: null,
+    condition: null,
+  );
 
   factory ReturnRequest.fromJson(Map<String, dynamic> json) {
     return ReturnRequest(
@@ -28,14 +40,12 @@ class ReturnRequest {
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'borrow_request_id': borrowRequestId,
-      'status': status,
-      'return_date': returnDate?.toIso8601String(),
-      'return_image_base64': returnImageBase64,
-      'condition': condition,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'borrow_request_id': borrowRequestId,
+    'status': status,
+    'return_date': returnDate?.toIso8601String(),
+    'return_image_base64': returnImageBase64,
+    'condition': condition,
+  };
 }

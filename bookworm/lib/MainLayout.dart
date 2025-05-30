@@ -180,7 +180,7 @@ class _MainLayoutState extends State<MainLayout> {
       children: [
         // Branding text on the left.
         AutoSizeText(
-          'BookWorm Dashboard',
+          'BookWorm',
           maxLines: 1,
           style: const TextStyle(
             fontSize: 20,
